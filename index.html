@@ -1258,7 +1258,7 @@ footer{
 
       <div class="search-header">
         <div>
-          <div class="search-title">Initiate Directory Query</div>
+          <div class="search-title">Initiate Lookup Engine</div>
           <div class="search-desc">Search corporate registrations, subscriber data, location groups, and owner associations via the high-speed intelligence engine.</div>
         </div>
         <div class="coord-display">
@@ -1292,11 +1292,18 @@ footer{
         </button>
       </form>
 
-      <div class="search-footer">
+      <div class="search-footer" style="display:flex; justify-content:space-between; flex-wrap:wrap; gap:10px; align-items:center;">
         <div class="hint-chips">
           <span class="hint-label">TEST TARGET:</span>
           <span class="hint-chip" id="hintChip"><i class="fa-solid fa-crosshairs"></i> <span id="hintVal">1234567890</span></span>
         </div>
+        
+        <div class="limit-badge" id="limitBadge" style="font-size:11px; font-weight:600; color:var(--c-text-muted); display:flex; gap:12px; align-items:center; background:var(--c-surface-1); padding:4px 12px; border-radius:4px; border:1px solid rgba(0,255,255,0.1);">
+          <div><i class="fa-solid fa-phone" style="color:var(--c-cyan);"></i> MOB: <span id="limitMobile" style="color:var(--c-text);">0</span>/5</div>
+          <div><i class="fa-solid fa-id-card" style="color:var(--c-purple);"></i> AAD: <span id="limitAadhaar" style="color:var(--c-text);">0</span>/5</div>
+          <div style="margin-left:5px; border-left:1px solid rgba(255,255,255,0.1); padding-left:10px;"><i class="fa-solid fa-clock"></i> <span id="limitTimer">--:--:--</span></div>
+        </div>
+
         <div class="encrypt-badge">
           <i class="fa-solid fa-lock-keyhole"></i>
           <span>AES-256 ENCRYPTED TRANSIT</span>
@@ -1779,7 +1786,7 @@ document.getElementById('searchForm').addEventListener('submit', e => {
       return;
     }
   }
-  doLookup(digits);
+  doLookup(digits, activeMode);
 });
 
 // ─────────────────────────────────────────────
@@ -2009,20 +2016,82 @@ document.getElementById('btnExport').addEventListener('click', () => {
 });
 
 // ─────────────────────────────────────────────
+// RATE LIMITER ENGINE
+// ─────────────────────────────────────────────
+const LIMIT_MAX = 5;
+const LIMIT_HOURS = 5;
+let currentUserId = 'guest';
+
+function initRateLimiter() {
+  const key = `nexus_limits_${currentUserId}`;
+  let stats = JSON.parse(localStorage.getItem(key));
+  
+  if (!stats || Date.now() > stats.resetAt) {
+    stats = {
+      resetAt: Date.now() + (LIMIT_HOURS * 60 * 60 * 1000),
+      mobile: 0,
+      aadhaar: 0
+    };
+    localStorage.setItem(key, JSON.stringify(stats));
+  }
+  updateLimitUI(stats);
+  startTimer(stats.resetAt);
+}
+
+function updateLimitUI(stats) {
+  const mEl = document.getElementById('limitMobile');
+  const aEl = document.getElementById('limitAadhaar');
+  if(mEl) mEl.textContent = stats.mobile;
+  if(aEl) aEl.textContent = stats.aadhaar;
+}
+
+let limitTimerInt = null;
+function startTimer(resetAt) {
+  if (limitTimerInt) clearInterval(limitTimerInt);
+  limitTimerInt = setInterval(() => {
+    const diff = resetAt - Date.now();
+    if (diff <= 0) {
+      initRateLimiter();
+      return;
+    }
+    const h = Math.floor(diff / (1000 * 60 * 60));
+    const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+    const s = Math.floor((diff % (1000 * 60)) / 1000);
+    const tEl = document.getElementById('limitTimer');
+    if(tEl) tEl.textContent = `${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
+  }, 1000);
+}
+
+function checkAndIncrementLimit(type) {
+  const key = `nexus_limits_${currentUserId}`;
+  let stats = JSON.parse(localStorage.getItem(key));
+  if (!stats || Date.now() > stats.resetAt) {
+    initRateLimiter();
+    stats = JSON.parse(localStorage.getItem(key));
+  }
+  if (stats[type] >= LIMIT_MAX) return false;
+  
+  stats[type]++;
+  localStorage.setItem(key, JSON.stringify(stats));
+  updateLimitUI(stats);
+  return true;
+}
+
+// ─────────────────────────────────────────────
 // MAIN LOOKUP
 // ─────────────────────────────────────────────
-async function doLookup(query) {
-  document.getElementById('resultsWrap').style.display = 'none';
+async function doLookup(query, mode) {
+  if (!checkAndIncrementLimit(mode)) {
+    toast('Limit Reached', `You have exhausted your 5 searches for ${mode.toUpperCase()} queries. Wait for the reset timer.`, 'error');
+    return;
+  }
 
+  document.getElementById('resultsWrap').style.display = 'none';
   await runScanner(query);
 
   try {
-    let url = CFG.apiUrl;
-    if (url.endsWith('=') || url.endsWith('&') || url.endsWith('?')) {
-      url += encodeURIComponent(query);
-    } else {
-      url += (url.includes('?') ? '&' : '?') + 'number=' + encodeURIComponent(query);
-    }
+    // Send mode to API to handle aadhaar vs number properly
+    const url = `/api/lookup?type=${mode}&query=${encodeURIComponent(query)}`;
 
     const res = await fetch(url);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -2034,7 +2103,7 @@ async function doLookup(query) {
     if (json && json.success && json.data && json.data.length) {
       renderResults(json);
       saveHistory(query);
-      toast('Query Complete', `${json.data.length} record(s) retrieved from directory.`, 'success');
+      toast('Query Complete', `${json.data.length} record(s) retrieved from lookup engine.`, 'success');
     } else {
       lastResultData = { data: [] };
       renderResults({ data: [], developer: json?.developer });
@@ -2134,6 +2203,8 @@ async function checkAuth() {
     }
 
     const user = session.user;
+    currentUserId = user.id; // Bind limits to this exact user
+    initRateLimiter(); // Load their limits
     
     // Update sys-bar with logged-in user email
     const operatorEl = document.getElementById('operatorId');
