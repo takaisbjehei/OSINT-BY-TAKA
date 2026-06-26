@@ -2115,6 +2115,51 @@ document.addEventListener('mousemove', e => {
   document.documentElement.style.setProperty('--my', e.clientY + 'px');
 });
 
+// ─────────────────────────────────────────────
+// REAL SUPABASE AUTH (Layer 1)
+// ─────────────────────────────────────────────
+let sb = null;
+
+async function checkAuth() {
+  try {
+    const res = await fetch('/api/config');
+    const cfg = await res.json();
+    sb = supabase.createClient(cfg.url, cfg.key);
+    
+    const { data: { session }, error } = await sb.auth.getSession();
+    
+    if (error || !session) {
+      window.location.href = 'auth.html';
+      return;
+    }
+
+    const user = session.user;
+    
+    // Update sys-bar with logged-in user email
+    const operatorEl = document.getElementById('operatorId');
+    if (operatorEl && user.email) {
+      operatorEl.textContent = user.email.toUpperCase();
+    }
+  } catch(e) {
+    console.error("Auth check failed", e);
+    window.location.href = 'auth.html';
+  }
+}
+
+// Kick off auth check immediately
+checkAuth();
+
+// Sign Out Handler
+const signOutBtn = document.getElementById('signOutBtn');
+if (signOutBtn) {
+  signOutBtn.addEventListener('click', async () => {
+    if(sb) {
+      await sb.auth.signOut();
+      window.location.href = 'auth.html';
+    }
+  });
+}
+
 </script>
 </body>
 </html>
