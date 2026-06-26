@@ -722,28 +722,31 @@ footer{
 
 <script>
 // ─────────────────────────────────────────────
-// SUPABASE INIT
+// SUPABASE INIT (Secure Vercel Config)
 // ─────────────────────────────────────────────
-const SUPA_URL = 'https://mcyhsncbqmrokaosmlin.supabase.co';
-const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1jeWhzbmNicW1yb2thb3NtbGluIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI4ODI5OTgsImV4cCI6MjA5ODA1ODk5OH0.1RdCfOCqsDv3lyFYq1EyV3z9J3NPvxD9q2iaGNrRgmg';
-
-const { createClient } = supabase;
-const sb = createClient(SUPA_URL, SUPA_KEY);
+let sb = null;
 
 // Check Supabase connection
 (async () => {
-  const statusEl = document.getElementById('sbStatus');
+  // We removed the sbStatus element earlier based on a previous request.
   try {
+    // 1. Fetch credentials securely from Vercel Backend
+    const res = await fetch('/api/config');
+    const cfg = await res.json();
+    
+    // 2. Initialize Supabase
+    const { createClient } = supabase;
+    sb = createClient(cfg.url, cfg.key);
+    
+    // 3. Check Session
     const { data, error } = await sb.auth.getSession();
-    statusEl.textContent = 'CONNECTED';
-    statusEl.style.color = 'var(--c-green)';
+    
     // If already logged in → redirect to main app
     if (data?.session) {
       window.location.href = 'index.html';
     }
   } catch(e) {
-    statusEl.textContent = 'ERROR';
-    statusEl.style.color = 'var(--c-red)';
+    console.error("Failed to initialize authentication", e);
   }
 })();
 
