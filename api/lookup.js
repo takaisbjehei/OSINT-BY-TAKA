@@ -1,33 +1,63 @@
 export default async function handler(req, res) {
-  // Only allow GET requests (or POST if you change the frontend)
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
   const { query, type } = req.query;
+  const authHeader = req.headers.authorization;
 
-  if (!query) {
-    return res.status(400).json({ error: 'Target query is required' });
+  if (!query || !authHeader) {
+    return res.status(400).json({ error: 'Query and Authorization required' });
   }
 
   try {
-    // Read the secret API endpoint from Vercel Environment Variables
     const baseUrl = process.env.API_BASE_URL;
+    const supaUrl = process.env.SUPABASE_URL;
+    const supaKey = process.env.SUPABASE_ANON_KEY;
 
-    if (!baseUrl) {
-      console.error('API_BASE_URL environment variable is missing.');
+    if (!baseUrl || !supaUrl || !supaKey) {
       return res.status(500).json({ error: 'Server configuration error' });
     }
 
-    // Construct the secure URL based on type
+    // 1. Verify User Token
+    const userRes = await fetch(`${supaUrl}/auth/v1/user`, {
+      headers: {
+        'apikey': supaKey,
+        'Authorization': authHeader
+      }
+    });
+    
+    if (!userRes.ok) {
+      return res.status(401).json({ error: 'Invalid or expired session token' });
+    }
+    const user = await userRes.json();
+
+    // 2. Check Rate Limit via RPC
+    const limitRes = await fetch(`${supaUrl}/rest/v1/rpc/check_rate_limit`, {
+      method: 'POST',
+      headers: {
+        'apikey': supaKey,
+        'Authorization': authHeader,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ p_user_id: user.id, p_search_type: type })
+    });
+    
+    const searchCount = await limitRes.json();
+    if (searchCount >= 5) {
+      return res.status(429).json({ error: 'Rate limit exceeded', limitReached: true });
+    }
+
+    // 3. Construct the secure URL based on type
+    // Aadhaar uses ?id=, Mobile uses ?number=
     let targetUrl;
     if (type === 'aadhaar') {
-      targetUrl = `${baseUrl}?aadhaar=${encodeURIComponent(query)}`;
+      targetUrl = `${baseUrl}?id=${encodeURIComponent(query)}`;
     } else {
       targetUrl = `${baseUrl}?number=${encodeURIComponent(query)}`;
     }
 
-    // Fetch from the upstream worker
+    // 4. Fetch from the upstream worker
     const response = await fetch(targetUrl);
     
     if (!response.ok) {
@@ -36,8 +66,24 @@ export default async function handler(req, res) {
 
     const data = await response.json();
 
-    // Send the response back to the frontend
-    res.status(200).json(data);
+    // 5. Log the search in Supabase
+    await fetch(`${supaUrl}/rest/v1/search_logs`, {
+      method: 'POST',
+      headers: {
+        'apikey': supaKey,
+        'Authorization': authHeader,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        user_id: user.id,
+        search_type: type,
+        query_target: query,
+        result_summary: { count: data.data?.length || 0 }
+      })
+    });
+
+    // Send the response back to the frontend with the new count
+    res.status(200).json({ ...data, current_usage: searchCount + 1 });
 
   } catch (error) {
     console.error('Lookup Error:', error.message);

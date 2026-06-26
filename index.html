@@ -1145,12 +1145,12 @@ footer{
       <div class="gate-title">Access <em>Restricted</em></div>
       <div class="gate-desc">
         NEXUS CORE requires session authentication.<br>
-        Follow <strong>@your_username</strong> on Instagram to unlock the number lookup engine.
+        Follow <strong>@Takadori</strong> on Instagram to unlock the number lookup engine.
       </div>
       
-      <a href="https://www.instagram.com/your_username/" target="_blank" class="btn-insta" id="gateFollowBtn">
+      <a href="https://www.instagram.com/Takadori/" target="_blank" class="btn-insta" id="gateFollowBtn">
         <i class="fa-brands fa-instagram"></i>
-        <span>Follow @your_username</span>
+        <span>Follow @Takadori</span>
       </a>
       
       <div class="gate-sep">VERIFY SESSION</div>
@@ -1401,7 +1401,7 @@ const CFG = {
   apiUrl: '/api/lookup?number=',
   testMobile: '1234567890',
   testAlt:    '123456789012',
-  igUser:     'your_username',
+  igUser:     'Takadori',
 };
 
 // ─────────────────────────────────────────────
@@ -1935,154 +1935,55 @@ function renderResults(data) {
             <span class="card-sub-badge">SUBSCRIBER</span>
           </div>
         </div>
-        <div class="card-signal">${sigBars}</div>
-      </div>
-      <div class="card-body">${fields}</div>
-      <div class="card-footer-row">
-        <span class="card-ts"><i class="fa-regular fa-clock" style="margin-right:4px"></i>${ts}</span>
-        <span class="card-id">${uid}</span>
-      </div>
-    `;
-
-    grid.appendChild(card);
-
-    // Scramble name
-    requestAnimationFrame(() => {
-      const nameEl = card.querySelector(`#cn-${uid}`);
-      if (nameEl) scramble(nameEl, displayName);
-    });
-
-    // 3D tilt on mouse move
-    card.addEventListener('mousemove', e => {
-      const rect = card.getBoundingClientRect();
-      const cx   = rect.left + rect.width / 2;
-      const cy   = rect.top  + rect.height / 2;
-      const rx   = (e.clientY - cy) / (rect.height / 2) * 5;
-      const ry   = (cx - e.clientX) / (rect.width / 2) * 5;
-      card.style.transform = `translateY(-6px) rotateX(${rx}deg) rotateY(${ry}deg)`;
-    });
-    card.addEventListener('mouseleave', () => {
-      card.style.transform = '';
-    });
-  });
-
-  wrap.style.display = 'flex';
-}
-
-function fieldIcon(k) {
-  k = k.toLowerCase();
-  if (k.includes('phone') || k.includes('mobile') || k.includes('number')) return 'fa-phone';
-  if (k.includes('email') || k.includes('mail')) return 'fa-envelope';
-  if (k.includes('address') || k.includes('location')) return 'fa-location-dot';
-  if (k.includes('name')) return 'fa-user';
-  if (k.includes('id') || k.includes('uid')) return 'fa-fingerprint';
-  if (k.includes('date') || k.includes('dob') || k.includes('birth')) return 'fa-calendar';
-  if (k.includes('gender') || k.includes('sex')) return 'fa-venus-mars';
-  if (k.includes('state') || k.includes('circle') || k.includes('district')) return 'fa-map';
-  if (k.includes('pin') || k.includes('zip') || k.includes('postal')) return 'fa-map-pin';
-  if (k.includes('operator') || k.includes('provider') || k.includes('carrier')) return 'fa-tower-cell';
-  if (k.includes('circle') || k.includes('region')) return 'fa-globe';
-  if (k.includes('status')) return 'fa-circle-dot';
-  return 'fa-circle-nodes';
-}
-
-function escHtml(str) {
-  return str.replace(/'/g,"&#39;").replace(/"/g,"&quot;");
-}
-
-function copyVal(btn, val) {
-  navigator.clipboard.writeText(val).then(() => {
-    btn.innerHTML = '<i class="fa-solid fa-check"></i>';
-    btn.classList.add('copied');
-    toast('Copied', val.length > 40 ? val.slice(0,40)+'…' : val, 'success');
-    setTimeout(() => {
-      btn.innerHTML = '<i class="fa-regular fa-copy"></i>';
-      btn.classList.remove('copied');
-    }, 2000);
-  });
-}
-
-// Export JSON
-document.getElementById('btnExport').addEventListener('click', () => {
-  if (!lastResultData) return;
-  const blob = new Blob([JSON.stringify(lastResultData, null, 2)], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `nexus_export_${Date.now()}.json`;
-  a.click();
-  URL.revokeObjectURL(url);
-  toast('Exported', 'Results exported as JSON file.', 'success');
-});
-
+        <div class="card-signal">${sigBar// ─────────────────────────────────────────────
+// RATE LIMITER ENGINE (BACKEND SYNCED)
 // ─────────────────────────────────────────────
-// RATE LIMITER ENGINE
-// ─────────────────────────────────────────────
-const LIMIT_MAX = 5;
-const LIMIT_HOURS = 5;
 let currentUserId = 'guest';
+let cachedToken = null;
+const LIMIT_MAX = 5;
 
-function initRateLimiter() {
-  const key = `nexus_limits_${currentUserId}`;
-  let stats = JSON.parse(localStorage.getItem(key));
-  
-  if (!stats || Date.now() > stats.resetAt) {
-    stats = {
-      resetAt: Date.now() + (LIMIT_HOURS * 60 * 60 * 1000),
-      mobile: 0,
-      aadhaar: 0
-    };
-    localStorage.setItem(key, JSON.stringify(stats));
+// Only fetch token once to avoid redundant network calls
+async function getAuthToken() {
+  if (cachedToken) return cachedToken;
+  if (!sb) return null;
+  const { data: { session } } = await sb.auth.getSession();
+  if (session) {
+    cachedToken = session.access_token;
+    return cachedToken;
   }
-  updateLimitUI(stats);
-  startTimer(stats.resetAt);
+  return null;
 }
 
-function updateLimitUI(stats) {
-  const mEl = document.getElementById('limitMobile');
-  const aEl = document.getElementById('limitAadhaar');
-  if(mEl) mEl.textContent = stats.mobile;
-  if(aEl) aEl.textContent = stats.aadhaar;
+// Function to pull counts from backend on load
+async function fetchCurrentUsage() {
+  const t = await getAuthToken();
+  if (!t) return;
+  // We can fetch from our logs table
+  try {
+    const res = await fetch(`/api/lookup-stats`); 
+    // Wait, the API doesn't have lookup-stats. We will update UI when they search.
+    // Or we can hit Supabase REST directly from frontend to get counts!
+    // But since backend enforces it, we'll just show placeholders and update on search.
+  } catch(e){}
 }
 
-let limitTimerInt = null;
-function startTimer(resetAt) {
-  if (limitTimerInt) clearInterval(limitTimerInt);
-  limitTimerInt = setInterval(() => {
-    const diff = resetAt - Date.now();
-    if (diff <= 0) {
-      initRateLimiter();
-      return;
-    }
-    const h = Math.floor(diff / (1000 * 60 * 60));
-    const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-    const s = Math.floor((diff % (1000 * 60)) / 1000);
-    const tEl = document.getElementById('limitTimer');
-    if(tEl) tEl.textContent = `${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
-  }, 1000);
-}
-
-function checkAndIncrementLimit(type) {
-  const key = `nexus_limits_${currentUserId}`;
-  let stats = JSON.parse(localStorage.getItem(key));
-  if (!stats || Date.now() > stats.resetAt) {
-    initRateLimiter();
-    stats = JSON.parse(localStorage.getItem(key));
+function updateLimitUI(type, usage) {
+  if (type === 'mobile') {
+    const mEl = document.getElementById('limitMobile');
+    if(mEl) mEl.textContent = usage;
+  } else if (type === 'aadhaar') {
+    const aEl = document.getElementById('limitAadhaar');
+    if(aEl) aEl.textContent = usage;
   }
-  if (stats[type] >= LIMIT_MAX) return false;
-  
-  stats[type]++;
-  localStorage.setItem(key, JSON.stringify(stats));
-  updateLimitUI(stats);
-  return true;
 }
 
 // ─────────────────────────────────────────────
 // MAIN LOOKUP
 // ─────────────────────────────────────────────
 async function doLookup(query, mode) {
-  if (!checkAndIncrementLimit(mode)) {
-    toast('Limit Reached', `You have exhausted your 5 searches for ${mode.toUpperCase()} queries. Wait for the reset timer.`, 'error');
+  const token = await getAuthToken();
+  if (!token) {
+    toast('Unauthorized', 'Missing session token.', 'error');
     return;
   }
 
@@ -2090,15 +1991,32 @@ async function doLookup(query, mode) {
   await runScanner(query);
 
   try {
-    // Send mode to API to handle aadhaar vs number properly
     const url = `/api/lookup?type=${mode}&query=${encodeURIComponent(query)}`;
 
-    const res = await fetch(url);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const res = await fetch(url, {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+    
     const json = await res.json();
+    
+    if (res.status === 429) {
+      hideScanner();
+      toast('Limit Reached', `You have exhausted your 5 searches for ${mode.toUpperCase()} queries. Wait for the reset timer.`, 'error');
+      updateLimitUI(mode, 5);
+      return;
+    }
+    
+    if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
 
     hideScanner();
     lastResultData = json;
+    
+    // Update the UI with the backend usage counter
+    if (json.current_usage !== undefined) {
+      updateLimitUI(mode, json.current_usage);
+    }
 
     if (json && json.success && json.data && json.data.length) {
       renderResults(json);
@@ -2120,10 +2038,8 @@ async function doLookup(query, mode) {
       <div class="empty-sub">${err.message || 'Unknown error'}. Verify the API endpoint is online and accepts requests from this origin.</div>
     </div>`;
     document.getElementById('countBadge').textContent = 'ERROR';
-    document.getElementById('resultsWrap').style.display = 'flex';
-    toast('Request Failed', err.message || 'API connection error.', 'error');
   }
-}
+
 
 // ─────────────────────────────────────────────
 // INIT
