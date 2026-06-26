@@ -1,0 +1,1061 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NEXUS CORE — Authentication</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=JetBrains+Mono:wght@300;400;700&family=Rajdhani:wght@300;400;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<style>
+:root {
+  --c-bg: #020509;
+  --c-surface: #060c14;
+  --c-glass: rgba(6,18,35,0.80);
+  --c-border: rgba(0,255,255,0.08);
+  --c-border2: rgba(0,255,255,0.22);
+  --c-cyan: #00ffff;
+  --c-blue: #0077ff;
+  --c-violet: #7b2fff;
+  --c-magenta: #ff00aa;
+  --c-green: #00ff88;
+  --c-red: #ff2244;
+  --c-gold: #ffc400;
+  --c-text: #e8f4ff;
+  --c-muted: #5a7a99;
+  --c-dim: #2a3a4a;
+  --f-hud: 'Orbitron', sans-serif;
+  --f-mono: 'JetBrains Mono', monospace;
+  --f-body: 'Rajdhani', sans-serif;
+  --glow-cyan: 0 0 20px rgba(0,255,255,0.35), 0 0 60px rgba(0,255,255,0.12);
+  --glow-violet: 0 0 20px rgba(123,47,255,0.4), 0 0 60px rgba(123,47,255,0.15);
+  --glow-green: 0 0 20px rgba(0,255,136,0.35), 0 0 60px rgba(0,255,136,0.12);
+}
+
+*{box-sizing:border-box;margin:0;padding:0}
+::selection{background:rgba(0,255,255,0.2);color:#00ffff}
+::-webkit-scrollbar{width:4px;background:#020509}
+::-webkit-scrollbar-thumb{background:linear-gradient(180deg,#00ffff,#0077ff);border-radius:2px}
+
+html,body{height:100%;overflow-x:hidden}
+body{
+  background:var(--c-bg);
+  color:var(--c-text);
+  font-family:var(--f-body);
+  min-height:100vh;
+  display:flex;flex-direction:column;
+}
+
+/* ─── BACKGROUND ─── */
+#bgCanvas{position:fixed;top:0;left:0;width:100%;height:100%;z-index:0;pointer-events:none}
+.scanlines{
+  position:fixed;top:0;left:0;width:100%;height:100%;
+  background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.08) 2px,rgba(0,0,0,0.08) 4px);
+  z-index:1;pointer-events:none;
+  animation:scanMove 8s linear infinite;
+}
+@keyframes scanMove{0%{background-position:0 0}100%{background-position:0 100px}}
+.vignette{
+  position:fixed;top:0;left:0;width:100%;height:100%;
+  background:radial-gradient(ellipse at center,transparent 45%,rgba(0,0,0,0.75) 100%);
+  z-index:2;pointer-events:none;
+}
+
+/* ─── WRAPPER ─── */
+.app{position:relative;z-index:10;display:flex;flex-direction:column;min-height:100vh}
+
+/* ─── SYS BAR ─── */
+.sys-bar{
+  background:rgba(0,0,0,0.65);
+  border-bottom:1px solid rgba(0,255,255,0.08);
+  padding:0 2rem;height:36px;
+  display:flex;align-items:center;justify-content:space-between;
+  font-family:var(--f-mono);font-size:0.68rem;letter-spacing:1px;
+  backdrop-filter:blur(20px);position:sticky;top:0;z-index:100;
+}
+.sb-left,.sb-right{display:flex;align-items:center;gap:1.5rem}
+.sb-metric{display:flex;align-items:center;gap:0.4rem;color:var(--c-muted)}
+.sb-metric .v{color:var(--c-cyan);font-weight:700}
+.sb-metric.ok .v{color:var(--c-green)}
+.sb-clock{color:var(--c-cyan);font-weight:700;letter-spacing:2px;font-size:0.73rem}
+
+/* ─── HEADER ─── */
+header{
+  padding:1.75rem 3rem 1.5rem;
+  display:flex;align-items:center;justify-content:space-between;
+  border-bottom:1px solid var(--c-border);position:relative;overflow:hidden;
+}
+header::after{
+  content:'';position:absolute;bottom:0;left:0;width:100%;height:1px;
+  background:linear-gradient(90deg,transparent,var(--c-cyan),var(--c-blue),var(--c-violet),transparent);
+  background-size:200% 100%;animation:borderSlide 4s linear infinite;
+}
+@keyframes borderSlide{0%{background-position:-100% 0}100%{background-position:200% 0}}
+
+.logo-cluster{display:flex;align-items:center;gap:1.25rem}
+.logo-hex{position:relative;width:52px;height:52px;display:flex;align-items:center;justify-content:center}
+.logo-hex svg{position:absolute;top:0;left:0;width:100%;height:100%;animation:hexSpin 20s linear infinite}
+@keyframes hexSpin{0%{transform:rotate(0)}100%{transform:rotate(360deg)}}
+.logo-hex-inner{
+  font-size:1.3rem;z-index:1;
+  background:linear-gradient(135deg,var(--c-cyan),var(--c-blue));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+  filter:drop-shadow(0 0 10px rgba(0,255,255,0.6));
+}
+.logo-name{
+  font-family:var(--f-hud);font-size:1.6rem;font-weight:900;letter-spacing:5px;
+  background:linear-gradient(135deg,#fff,var(--c-cyan),var(--c-blue));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+  filter:drop-shadow(0 0 12px rgba(0,255,255,0.35));
+}
+.logo-sub{font-family:var(--f-mono);font-size:0.6rem;color:var(--c-muted);letter-spacing:3.5px;margin-top:3px}
+.logo-sub span{color:var(--c-cyan)}
+
+.back-link{
+  display:flex;align-items:center;gap:0.6rem;
+  font-family:var(--f-mono);font-size:0.72rem;letter-spacing:1.5px;
+  color:var(--c-muted);text-decoration:none;
+  border:1px solid var(--c-border);border-radius:8px;
+  padding:0.5rem 1rem;
+  transition:all 0.25s;
+}
+.back-link:hover{color:var(--c-cyan);border-color:rgba(0,255,255,0.25);box-shadow:0 0 12px rgba(0,255,255,0.12)}
+
+/* ─── MAIN ─── */
+.main{
+  flex:1;display:flex;align-items:center;justify-content:center;
+  padding:3rem 1.5rem;position:relative;
+}
+
+/* ─── AUTH CARD ─── */
+.auth-card{
+  width:100%;max-width:480px;
+  background:var(--c-glass);
+  border:1px solid var(--c-border);
+  border-radius:24px;
+  overflow:hidden;
+  backdrop-filter:blur(30px);
+  box-shadow:0 30px 80px rgba(0,0,0,0.7),var(--glow-cyan);
+  position:relative;
+  animation:cardIn 0.6s cubic-bezier(0.16,1,0.3,1) forwards;
+}
+@keyframes cardIn{from{opacity:0;transform:translateY(30px) scale(0.97)}to{opacity:1;transform:translateY(0) scale(1)}}
+
+/* Animated top accent line */
+.auth-accent{
+  height:3px;width:100%;
+  background:linear-gradient(90deg,var(--c-violet),var(--c-cyan),var(--c-blue),var(--c-cyan),var(--c-violet));
+  background-size:200% 100%;
+  animation:accentAnim 3s linear infinite;
+}
+@keyframes accentAnim{0%{background-position:0 0}100%{background-position:200% 0}}
+
+/* Rotating conic glow inside card */
+.auth-card::before{
+  content:'';position:absolute;top:-60%;left:-60%;width:220%;height:220%;
+  background:conic-gradient(from 0deg,transparent 0deg,rgba(0,255,255,0.025) 60deg,transparent 120deg,rgba(123,47,255,0.02) 240deg,transparent 360deg);
+  animation:conicSpin 18s linear infinite;pointer-events:none;
+}
+@keyframes conicSpin{0%{transform:rotate(0)}100%{transform:rotate(360deg)}}
+
+/* Corner brackets */
+.crn{position:absolute;width:16px;height:16px;z-index:1}
+.crn::before,.crn::after{content:'';position:absolute;background:rgba(0,255,255,0.5)}
+.crn::before{width:100%;height:1.5px}
+.crn::after{width:1.5px;height:100%}
+.crn.tl{top:14px;left:14px}
+.crn.tr{top:14px;right:14px;transform:scaleX(-1)}
+.crn.bl{bottom:14px;left:14px;transform:scaleY(-1)}
+.crn.br{bottom:14px;right:14px;transform:scale(-1)}
+
+.auth-body{padding:2.25rem 2.25rem 2.5rem;position:relative;z-index:2}
+
+/* ─── TABS ─── */
+.auth-tabs{
+  display:flex;
+  background:rgba(0,0,0,0.45);
+  border:1px solid var(--c-border);
+  border-radius:12px;padding:0.25rem;gap:0.25rem;
+  margin-bottom:2rem;
+}
+.auth-tab{
+  flex:1;background:transparent;border:none;
+  color:var(--c-muted);padding:0.85rem;
+  border-radius:9px;
+  font-family:var(--f-hud);font-size:0.68rem;letter-spacing:2.5px;text-transform:uppercase;
+  cursor:pointer;display:flex;align-items:center;justify-content:center;gap:0.5rem;
+  transition:all 0.3s;
+}
+.auth-tab:hover{color:var(--c-text)}
+.auth-tab.active{
+  background:rgba(0,255,255,0.07);
+  border:1px solid rgba(0,255,255,0.2);
+  color:var(--c-cyan);
+  box-shadow:0 0 15px rgba(0,255,255,0.1),inset 0 0 10px rgba(0,255,255,0.03);
+}
+.auth-tab.active i{filter:drop-shadow(0 0 5px var(--c-cyan))}
+
+/* ─── FORMS ─── */
+.auth-panel{display:none;flex-direction:column;gap:1.25rem;animation:panelIn 0.35s ease}
+.auth-panel.active{display:flex}
+@keyframes panelIn{from{opacity:0;transform:translateX(8px)}to{opacity:1;transform:translateX(0)}}
+
+.panel-heading{margin-bottom:0.25rem}
+.panel-title{
+  font-family:var(--f-hud);font-size:1.15rem;font-weight:700;letter-spacing:2.5px;
+  color:var(--c-text);text-transform:uppercase;
+}
+.panel-sub{font-family:var(--f-mono);font-size:0.72rem;color:var(--c-muted);letter-spacing:0.5px;margin-top:4px;line-height:1.5}
+
+/* field groups */
+.field-group{display:flex;flex-direction:column;gap:0.4rem}
+.field-label{
+  font-family:var(--f-mono);font-size:0.62rem;letter-spacing:2px;
+  color:var(--c-muted);text-transform:uppercase;
+  display:flex;align-items:center;gap:0.4rem;
+}
+.field-label i{color:var(--c-dim);font-size:0.7rem}
+
+.field-input-wrap{
+  position:relative;display:flex;align-items:center;
+}
+.field-input-wrap::after{
+  content:'';position:absolute;bottom:0;left:50%;transform:translateX(-50%);
+  width:0;height:1.5px;border-radius:1px;
+  background:linear-gradient(90deg,var(--c-blue),var(--c-cyan));
+  transition:width 0.4s;
+}
+.field-input-wrap:focus-within::after{width:100%}
+
+.field-icon{
+  position:absolute;left:1rem;color:var(--c-muted);font-size:0.9rem;pointer-events:none;
+  transition:color 0.3s,filter 0.3s;
+}
+.field-input-wrap:focus-within .field-icon{color:var(--c-cyan);filter:drop-shadow(0 0 5px var(--c-cyan))}
+
+.field-input{
+  width:100%;height:52px;
+  background:rgba(0,5,18,0.75);
+  border:1px solid var(--c-border);
+  border-radius:10px;
+  padding:0 1rem 0 2.75rem;
+  color:var(--c-text);
+  font-family:var(--f-mono);font-size:0.9rem;letter-spacing:0.5px;
+  outline:none;transition:border-color 0.3s,background 0.3s;
+}
+.field-input:focus{border-color:rgba(0,255,255,0.2);background:rgba(0,5,18,0.95)}
+.field-input::placeholder{color:var(--c-dim);font-size:0.8rem}
+.field-input.error-field{border-color:rgba(255,34,68,0.4)!important;animation:shake 0.4s ease}
+@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
+
+/* password toggle */
+.btn-eye{
+  position:absolute;right:0.75rem;
+  background:transparent;border:none;
+  color:var(--c-dim);font-size:0.85rem;cursor:pointer;
+  padding:0.5rem;transition:color 0.2s;
+}
+.btn-eye:hover{color:var(--c-cyan)}
+
+/* field error msg */
+.field-err{
+  font-family:var(--f-mono);font-size:0.65rem;
+  color:var(--c-red);letter-spacing:0.5px;
+  display:none;animation:fadeIn 0.2s ease;
+}
+.field-err.show{display:block}
+@keyframes fadeIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}
+
+/* strength meter */
+.strength-wrap{display:flex;flex-direction:column;gap:0.35rem;margin-top:-0.5rem}
+.strength-bars{display:flex;gap:3px}
+.strength-bar{
+  flex:1;height:3px;border-radius:2px;
+  background:rgba(255,255,255,0.06);
+  transition:background 0.3s;
+}
+.strength-label{font-family:var(--f-mono);font-size:0.62rem;color:var(--c-dim);letter-spacing:1px}
+
+/* options row */
+.options-row{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.5rem}
+
+.checkbox-wrap{display:flex;align-items:center;gap:0.5rem;cursor:pointer}
+.checkbox-wrap input[type=checkbox]{
+  appearance:none;width:16px;height:16px;
+  background:rgba(0,5,18,0.8);
+  border:1px solid var(--c-border);border-radius:4px;
+  cursor:pointer;position:relative;transition:all 0.2s;flex-shrink:0;
+}
+.checkbox-wrap input[type=checkbox]:checked{
+  background:rgba(0,255,255,0.15);border-color:rgba(0,255,255,0.4);
+}
+.checkbox-wrap input[type=checkbox]:checked::after{
+  content:'\f00c';font-family:'Font Awesome 6 Free';font-weight:900;
+  position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+  color:var(--c-cyan);font-size:9px;
+}
+.check-label{font-family:var(--f-mono);font-size:0.72rem;color:var(--c-muted)}
+
+.forgot-link{
+  font-family:var(--f-mono);font-size:0.7rem;color:var(--c-muted);
+  text-decoration:none;letter-spacing:0.5px;transition:color 0.2s;cursor:pointer;
+}
+.forgot-link:hover{color:var(--c-cyan)}
+
+/* ─── SUBMIT BUTTON ─── */
+.btn-submit{
+  width:100%;height:54px;position:relative;overflow:hidden;
+  background:linear-gradient(135deg,var(--c-blue),var(--c-cyan));
+  border:none;border-radius:11px;
+  color:#000;font-family:var(--f-hud);font-size:0.75rem;font-weight:700;
+  letter-spacing:3px;text-transform:uppercase;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;gap:0.75rem;
+  transition:all 0.3s;
+  box-shadow:0 4px 20px rgba(0,119,255,0.3);
+  margin-top:0.25rem;
+}
+.btn-submit::before{
+  content:'';position:absolute;top:-100%;left:-100%;width:100%;height:100%;
+  background:linear-gradient(135deg,transparent,rgba(255,255,255,0.25),transparent);
+  transition:all 0.55s;
+}
+.btn-submit:hover::before{top:100%;left:100%}
+.btn-submit:hover{transform:translateY(-2px);box-shadow:0 8px 30px rgba(0,119,255,0.5),var(--glow-cyan);filter:brightness(1.1)}
+.btn-submit:active{transform:translateY(0)}
+.btn-submit:disabled{opacity:0.6;cursor:not-allowed;transform:none!important}
+
+/* spinner inside button */
+.btn-spinner{display:none}
+.btn-submit.loading .btn-spinner{display:inline-block;animation:spin 0.7s linear infinite}
+.btn-submit.loading .btn-txt{display:none}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ─── DIVIDER ─── */
+.divider{
+  display:flex;align-items:center;gap:0.75rem;
+  font-family:var(--f-mono);font-size:0.62rem;color:var(--c-dim);letter-spacing:2px;
+}
+.divider::before,.divider::after{content:'';flex:1;height:1px;background:var(--c-border)}
+
+/* ─── SOCIAL BUTTONS ─── */
+.social-row{display:flex;gap:0.75rem}
+.btn-social{
+  flex:1;height:46px;
+  background:rgba(255,255,255,0.03);
+  border:1px solid var(--c-border);
+  border-radius:10px;color:var(--c-muted);
+  font-family:var(--f-mono);font-size:0.72rem;letter-spacing:1px;
+  cursor:pointer;display:flex;align-items:center;justify-content:center;gap:0.5rem;
+  transition:all 0.25s;
+}
+.btn-social:hover{background:rgba(255,255,255,0.07);border-color:rgba(255,255,255,0.18);color:var(--c-text)}
+.btn-social i.fa-google{background:linear-gradient(135deg,#4285F4,#EA4335,#FBBC05,#34A853);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.btn-social i.fa-github{color:#ccc}
+
+/* ─── SUCCESS STATE ─── */
+.success-overlay{
+  position:absolute;inset:0;z-index:20;
+  background:rgba(2,8,20,0.97);
+  display:none;flex-direction:column;align-items:center;justify-content:center;gap:1.5rem;
+  border-radius:24px;
+  animation:fadeIn 0.4s ease;
+}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+.success-icon{
+  width:80px;height:80px;border-radius:50%;
+  background:rgba(0,255,136,0.1);
+  border:2px solid rgba(0,255,136,0.3);
+  display:flex;align-items:center;justify-content:center;
+  font-size:2rem;color:var(--c-green);
+  animation:successPulse 1.5s ease-in-out infinite;
+  box-shadow:var(--glow-green);
+}
+@keyframes successPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.08)}}
+.success-title{font-family:var(--f-hud);font-size:1rem;letter-spacing:3px;color:var(--c-green);text-transform:uppercase}
+.success-sub{font-family:var(--f-mono);font-size:0.78rem;color:var(--c-muted);text-align:center;padding:0 2rem;line-height:1.6}
+.success-redirect{
+  font-family:var(--f-mono);font-size:0.68rem;color:var(--c-dim);
+  letter-spacing:1px;display:flex;align-items:center;gap:0.4rem;
+}
+.redirect-dot{
+  width:6px;height:6px;border-radius:50%;
+  background:var(--c-cyan);
+  animation:blinkDot 0.6s ease infinite alternate;
+}
+@keyframes blinkDot{0%{opacity:0.2}100%{opacity:1;box-shadow:0 0 8px var(--c-cyan)}}
+
+/* ─── FOOTER ─── */
+footer{
+  border-top:1px solid var(--c-border);
+  padding:1.25rem 3rem;
+  display:flex;align-items:center;justify-content:space-between;
+  flex-wrap:wrap;gap:0.75rem;
+}
+.options-row{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.5rem}
+.ft-left,.ft-right{font-family:var(--f-mono);font-size:0.65rem;color:var(--c-dim);letter-spacing:1px}
+.ft-left span,.ft-right span{color:var(--c-muted)}
+
+/* ─── TOASTS ─── */
+.toast-zone{position:fixed;bottom:2rem;right:2rem;display:flex;flex-direction:column;gap:0.75rem;z-index:99999}
+.toast{
+  background:rgba(4,10,22,0.97);
+  border:1px solid var(--c-border);
+  border-left:3px solid var(--c-cyan);
+  border-radius:10px;padding:0.9rem 1.25rem;
+  min-width:290px;max-width:370px;
+  backdrop-filter:blur(20px);
+  box-shadow:0 10px 30px rgba(0,0,0,0.6);
+  display:flex;align-items:flex-start;gap:0.75rem;
+  animation:toastIn 0.4s cubic-bezier(0.16,1,0.3,1) forwards;
+}
+.toast.t-error{border-left-color:var(--c-red)}
+.toast.t-success{border-left-color:var(--c-green)}
+.toast.t-warn{border-left-color:var(--c-gold)}
+.toast i{margin-top:2px;flex-shrink:0;font-size:0.95rem}
+.toast.t-error i{color:var(--c-red);filter:drop-shadow(0 0 5px var(--c-red))}
+.toast.t-success i{color:var(--c-green);filter:drop-shadow(0 0 5px var(--c-green))}
+.toast.t-warn i{color:var(--c-gold);filter:drop-shadow(0 0 5px var(--c-gold))}
+.toast:not(.t-error):not(.t-success):not(.t-warn) i{color:var(--c-cyan);filter:drop-shadow(0 0 5px var(--c-cyan))}
+.toast-col{display:flex;flex-direction:column;gap:0.15rem}
+.toast-ttl{font-family:var(--f-hud);font-size:0.68rem;letter-spacing:1.5px;text-transform:uppercase;color:var(--c-text);font-weight:700}
+.toast-msg{font-family:var(--f-mono);font-size:0.74rem;color:var(--c-muted);letter-spacing:0.3px}
+@keyframes toastIn{from{transform:translateX(110%);opacity:0}to{transform:translateX(0);opacity:1}}
+.toast-out{animation:toastOut 0.35s ease forwards}
+@keyframes toastOut{to{transform:translateX(110%);opacity:0}}
+
+/* ─── RESPONSIVE ─── */
+@media(max-width:600px){
+  header{padding:1.25rem}
+  .logo-name{font-size:1.2rem}
+  .auth-body{padding:1.75rem 1.5rem 2rem}
+  footer{flex-direction:column;text-align:center}
+  .sys-bar{display:none}
+  .social-row{flex-direction:column}
+}
+/* ─── TERMS MODAL ─── */
+.terms-overlay {
+  position: fixed; inset: 0; z-index: 999999;
+  background: rgba(1, 3, 8, 0.95); backdrop-filter: blur(15px);
+  display: none; align-items: center; justify-content: center;
+  padding: 1.5rem; animation: fadeIn 0.3s ease;
+}
+.terms-card {
+  background: var(--c-glass); border: 1px solid var(--c-border2);
+  border-radius: 16px; width: 100%; max-width: 600px; max-height: 85vh;
+  display: flex; flex-direction: column; overflow: hidden;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.8), var(--glow-cyan);
+}
+.terms-header {
+  padding: 1.25rem 1.5rem; border-bottom: 1px solid var(--c-border);
+  display: flex; align-items: center; justify-content: space-between;
+}
+.terms-title {
+  font-family: var(--f-hud); font-size: 1.1rem; color: var(--c-text);
+  letter-spacing: 2px; text-transform: uppercase;
+  display: flex; align-items: center; gap: 0.5rem;
+}
+.terms-title i { color: var(--c-cyan); }
+.btn-close-terms {
+  background: transparent; border: none; color: var(--c-muted);
+  font-size: 1.25rem; cursor: pointer; transition: color 0.2s;
+}
+.btn-close-terms:hover { color: var(--c-red); }
+.terms-body {
+  padding: 1.5rem; overflow-y: auto; font-family: var(--f-mono);
+  font-size: 0.8rem; color: var(--c-muted); line-height: 1.6;
+}
+.terms-body h3 {
+  font-family: var(--f-hud); color: var(--c-cyan); font-size: 0.9rem;
+  margin: 1.5rem 0 0.5rem 0; letter-spacing: 1px;
+}
+.terms-body h3:first-child { margin-top: 0; }
+.terms-body p { margin-bottom: 1rem; }
+.terms-body ul { margin-left: 1.25rem; margin-bottom: 1rem; }
+.terms-body li { margin-bottom: 0.25rem; }
+.terms-link {
+  color: var(--c-cyan); text-decoration: none; cursor: pointer;
+}
+.terms-link:hover { text-decoration: underline; text-underline-offset: 2px; }
+</style>
+</head>
+<body>
+
+<canvas id="bgCanvas"></canvas>
+<div class="scanlines"></div>
+<div class="vignette"></div>
+
+<div class="app">
+
+  <!-- System Bar -->
+  <div class="sys-bar">
+    <div class="sb-left">
+      <div class="sb-metric ok"><i class="fa-solid fa-circle" style="font-size:0.38rem"></i><span>AUTH NODE</span><span class="v">ONLINE</span></div>
+      <div class="sb-metric"><span>TLS</span><span class="v" style="color:var(--c-green)">1.3</span></div>
+      <div class="sb-metric"><span>PROTOCOL</span><span class="v">JWT/PKCE</span></div>
+    </div>
+    <div class="sb-right">
+      <div class="sb-clock" id="sbClock">00:00:00</div>
+    </div>
+  </div>
+
+  <!-- Header -->
+  <header>
+    <div class="logo-cluster">
+      <div class="logo-hex">
+        <svg viewBox="0 0 100 100" fill="none">
+          <polygon points="50,5 95,27.5 95,72.5 50,95 5,72.5 5,27.5" stroke="rgba(0,255,255,0.3)" stroke-width="1" fill="none"/>
+          <polygon points="50,15 85,32.5 85,67.5 50,85 15,67.5 15,32.5" stroke="rgba(0,119,255,0.2)" stroke-width="1" fill="none"/>
+        </svg>
+        <span class="logo-hex-inner"><i class="fa-solid fa-satellite-dish"></i></span>
+      </div>
+      <div>
+        <div class="logo-name">NEXUS CORE</div>
+        <div class="logo-sub">Intelligence Directory System <span>v3.7.1</span></div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main -->
+  <main class="main">
+    <div class="auth-card">
+      <div class="crn tl"></div>
+      <div class="crn tr"></div>
+      <div class="crn bl"></div>
+      <div class="crn br"></div>
+
+      <!-- Success overlay (shown after register/login) -->
+      <div class="success-overlay" id="successOverlay">
+        <div class="success-icon"><i class="fa-solid fa-shield-check"></i></div>
+        <div class="success-title" id="successTitle">Access Granted</div>
+        <div class="success-sub" id="successSub">Authentication successful. Initializing session...</div>
+        <div class="success-redirect">
+          <div class="redirect-dot"></div>
+          <span id="successRedirect">Redirecting to directory...</span>
+        </div>
+      </div>
+
+      <div class="auth-accent"></div>
+      <div class="auth-body">
+
+        <!-- Tabs -->
+        <div class="auth-tabs">
+          <button class="auth-tab active" id="tabLogin" onclick="switchTab('login')">
+            <i class="fa-solid fa-right-to-bracket"></i>
+            <span>Sign In</span>
+          </button>
+          <button class="auth-tab" id="tabRegister" onclick="switchTab('register')">
+            <i class="fa-solid fa-user-plus"></i>
+            <span>Register</span>
+          </button>
+        </div>
+
+        <!-- ─── LOGIN PANEL ─── -->
+        <div class="auth-panel active" id="panelLogin">
+          <div class="panel-heading">
+            <div class="panel-title">Authentication</div>
+            <div class="panel-sub">Enter your credentials to access the intelligence directory system.</div>
+          </div>
+
+          <div class="field-group">
+            <label class="field-label"><i class="fa-solid fa-envelope"></i>Email Address</label>
+            <div class="field-input-wrap">
+              <i class="fa-solid fa-envelope field-icon"></i>
+              <input type="email" id="loginEmail" class="field-input" placeholder="operator@nexus.io" autocomplete="email">
+            </div>
+            <span class="field-err" id="loginEmailErr"></span>
+          </div>
+
+          <div class="field-group">
+            <label class="field-label"><i class="fa-solid fa-lock"></i>Access Key</label>
+            <div class="field-input-wrap">
+              <i class="fa-solid fa-lock field-icon"></i>
+              <input type="password" id="loginPass" class="field-input" placeholder="••••••••••••" autocomplete="current-password">
+              <button class="btn-eye" type="button" onclick="togglePwd('loginPass',this)">
+                <i class="fa-regular fa-eye"></i>
+              </button>
+            </div>
+            <span class="field-err" id="loginPassErr"></span>
+          </div>
+
+          <div class="options-row">
+            <label class="checkbox-wrap">
+              <input type="checkbox" id="rememberMe">
+              <span class="check-label">Remember session</span>
+            </label>
+            <span class="forgot-link" onclick="handleForgotPassword()">Forgot key?</span>
+          </div>
+          
+          <label class="checkbox-wrap" style="margin-top:0.5rem">
+            <input type="checkbox" id="agreeTermsLogin">
+            <span class="check-label">I accept the <a class="terms-link" onclick="showTerms()">system terms and data policies</a></span>
+          </label>
+          <span class="field-err" id="loginTermsErr"></span>
+
+          <button class="btn-submit" id="btnLogin" onclick="handleLogin()">
+            <i class="fa-solid fa-circle-notch btn-spinner" id="loginSpinner"></i>
+            <span class="btn-txt"><i class="fa-solid fa-right-to-bracket"></i>&nbsp; Authenticate</span>
+          </button>
+
+        </div><!-- /panelLogin -->
+
+        <!-- ─── REGISTER PANEL ─── -->
+        <div class="auth-panel" id="panelRegister">
+          <div class="panel-heading">
+            <div class="panel-title">Create Account</div>
+            <div class="panel-sub">Register a new operator profile to access the directory system.</div>
+          </div>
+
+          <div class="field-group">
+            <label class="field-label"><i class="fa-solid fa-user"></i>Operator Name</label>
+            <div class="field-input-wrap">
+              <i class="fa-solid fa-user field-icon"></i>
+              <input type="text" id="regName" class="field-input" placeholder="Operator Name" autocomplete="name">
+            </div>
+            <span class="field-err" id="regNameErr"></span>
+          </div>
+
+          <div class="field-group">
+            <label class="field-label"><i class="fa-solid fa-envelope"></i>Email Address</label>
+            <div class="field-input-wrap">
+              <i class="fa-solid fa-envelope field-icon"></i>
+              <input type="email" id="regEmail" class="field-input" placeholder="operator@nexus.io" autocomplete="email">
+            </div>
+            <span class="field-err" id="regEmailErr"></span>
+          </div>
+
+          <div class="field-group">
+            <label class="field-label"><i class="fa-solid fa-lock"></i>Access Key</label>
+            <div class="field-input-wrap">
+              <i class="fa-solid fa-lock field-icon"></i>
+              <input type="password" id="regPass" class="field-input" placeholder="Create strong key" autocomplete="new-password" oninput="checkStrength(this.value)">
+              <button class="btn-eye" type="button" onclick="togglePwd('regPass',this)">
+                <i class="fa-regular fa-eye"></i>
+              </button>
+            </div>
+            <div class="strength-wrap">
+              <div class="strength-bars">
+                <div class="strength-bar" id="sb1"></div>
+                <div class="strength-bar" id="sb2"></div>
+                <div class="strength-bar" id="sb3"></div>
+                <div class="strength-bar" id="sb4"></div>
+              </div>
+              <div class="strength-label" id="strengthLabel">ENTER PASSWORD</div>
+            </div>
+            <span class="field-err" id="regPassErr"></span>
+          </div>
+
+          <div class="field-group">
+            <label class="field-label"><i class="fa-solid fa-lock-keyhole"></i>Confirm Key</label>
+            <div class="field-input-wrap">
+              <i class="fa-solid fa-lock-keyhole field-icon"></i>
+              <input type="password" id="regConfirm" class="field-input" placeholder="Repeat access key" autocomplete="new-password">
+              <button class="btn-eye" type="button" onclick="togglePwd('regConfirm',this)">
+                <i class="fa-regular fa-eye"></i>
+              </button>
+            </div>
+            <span class="field-err" id="regConfirmErr"></span>
+          </div>
+
+          <label class="checkbox-wrap" style="margin-top:-0.25rem">
+            <input type="checkbox" id="agreeTerms">
+            <span class="check-label">I accept the <a class="terms-link" onclick="showTerms()">system terms and data policies</a></span>
+          </label>
+          <span class="field-err" id="termsErr"></span>
+
+          <button class="btn-submit" id="btnRegister" onclick="handleRegister()">
+            <i class="fa-solid fa-circle-notch btn-spinner" id="regSpinner"></i>
+            <span class="btn-txt"><i class="fa-solid fa-user-plus"></i>&nbsp; Create Account</span>
+          </button>
+
+        </div><!-- /panelRegister -->
+
+      </div><!-- /auth-body -->
+    </div><!-- /auth-card -->
+  </main>
+
+  <!-- Footer -->
+  <footer>
+    <div class="ft-left">NEXUS CORE <span>v3.7.1</span> &nbsp;•&nbsp; AUTH ENGINE <span>NEXUS</span> &nbsp;•&nbsp; PROTOCOL <span>JWT/PKCE</span></div>
+    <div class="ft-right">SESSION ENCRYPTED &nbsp;<span style="color:var(--c-green)">AES-256</span></div>
+  </footer>
+
+</div>
+
+<div class="terms-overlay" id="termsOverlay">
+  <div class="terms-card">
+    <div class="terms-header">
+      <div class="terms-title"><i class="fa-solid fa-file-contract"></i> Use Policy & Legal Agreement</div>
+      <button class="btn-close-terms" onclick="closeTerms()"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="terms-body">
+      <h3>1. Authorized Use Only</h3>
+      <p>NEXUS CORE (the "System") is an OSINT (Open Source Intelligence) aggregation tool designed exclusively for authorized cybersecurity research, threat intelligence, and legitimate investigative purposes. By accessing this system, you confirm you have explicit authorization to utilize these tools.</p>
+      
+      <h3>2. Data Disclaimer & Liability</h3>
+      <p>The System acts strictly as a passthrough search directory. We do not host, store, own, or verify the accuracy of the data presented.</p>
+      <ul>
+        <li>Data is indexed from publicly exposed third-party databases.</li>
+        <li>The developer and server hosts claim absolutely no liability for the misuse of this information.</li>
+        <li>You assume full legal responsibility for how you utilize any retrieved intelligence.</li>
+      </ul>
+
+      <h3>3. Prohibited Activities</h3>
+      <p>Under no circumstances shall this tool be used for:</p>
+      <ul>
+        <li>Harassment, stalking, or doxxing individuals.</li>
+        <li>Identity theft, fraud, or financial crimes.</li>
+        <li>Any actions that violate local, state, federal, or international privacy laws.</li>
+      </ul>
+
+      <h3>4. Enforcement & Auditing</h3>
+      <p>Access to the System is a privilege, not a right. All queries and endpoint accesses may be logged for security auditing purposes. Any detected abuse, automated scraping without consent, or malicious activity will result in immediate and permanent hardware/IP bans and revocation of your access key.</p>
+      
+      <p style="margin-top: 1.5rem; color: var(--c-text); text-align: center;">By checking the agreement box and authenticating, you legally bind yourself to these terms.</p>
+    </div>
+  </div>
+</div>
+
+<div class="toast-zone" id="toastZone"></div>
+
+<script>
+// ─────────────────────────────────────────────
+// SUPABASE INIT
+// ─────────────────────────────────────────────
+const SUPA_URL = 'https://mcyhsncbqmrokaosmlin.supabase.co';
+const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1jeWhzbmNicW1yb2thb3NtbGluIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI4ODI5OTgsImV4cCI6MjA5ODA1ODk5OH0.1RdCfOCqsDv3lyFYq1EyV3z9J3NPvxD9q2iaGNrRgmg';
+
+const { createClient } = supabase;
+const sb = createClient(SUPA_URL, SUPA_KEY);
+
+// Check Supabase connection
+(async () => {
+  const statusEl = document.getElementById('sbStatus');
+  try {
+    const { data, error } = await sb.auth.getSession();
+    statusEl.textContent = 'CONNECTED';
+    statusEl.style.color = 'var(--c-green)';
+    // If already logged in → redirect to main app
+    if (data?.session) {
+      window.location.href = 'index.html';
+    }
+  } catch(e) {
+    statusEl.textContent = 'ERROR';
+    statusEl.style.color = 'var(--c-red)';
+  }
+})();
+
+// ─────────────────────────────────────────────
+// CANVAS BACKGROUND
+// ─────────────────────────────────────────────
+(function() {
+  const canvas = document.getElementById('bgCanvas');
+  const ctx = canvas.getContext('2d');
+  let W, H, particles = [], mouse = { x:-9999, y:-9999 };
+  const N = 90;
+
+  function resize() { W = canvas.width = window.innerWidth; H = canvas.height = window.innerHeight; }
+
+  class P {
+    constructor() { this.reset(true); }
+    reset(init=false) {
+      this.x = Math.random()*W; this.y = init ? Math.random()*H : H+10;
+      this.vx = (Math.random()-.5)*.4; this.vy = -(Math.random()*.3+.1);
+      this.r = Math.random()*1.4+.4; this.life = Math.random()*.5+.25;
+      this.hue = Math.random()<.65 ? 185 : (Math.random()<.5 ? 210 : 280);
+    }
+    update() {
+      const dx=mouse.x-this.x, dy=mouse.y-this.y, d=Math.hypot(dx,dy);
+      if(d<180){const f=(180-d)/180*.015;this.vx+=dx*f*.012;this.vy+=dy*f*.012;}
+      this.x+=this.vx; this.y+=this.vy; this.vx*=.994; this.vy*=.994;
+      if(this.y<-10||this.x<-10||this.x>W+10) this.reset();
+    }
+    draw() {
+      ctx.beginPath(); ctx.arc(this.x,this.y,this.r,0,Math.PI*2);
+      ctx.fillStyle=`hsla(${this.hue},100%,70%,${this.life})`; ctx.fill();
+    }
+  }
+
+  function drawConnections() {
+    for(let i=0;i<particles.length;i++) {
+      for(let j=i+1;j<particles.length;j++) {
+        const d=Math.hypot(particles[i].x-particles[j].x,particles[i].y-particles[j].y);
+        if(d<110){
+          ctx.beginPath(); ctx.moveTo(particles[i].x,particles[i].y); ctx.lineTo(particles[j].x,particles[j].y);
+          ctx.strokeStyle=`rgba(0,200,255,${(1-d/110)*.14})`; ctx.lineWidth=.5; ctx.stroke();
+        }
+      }
+    }
+  }
+
+  function loop() {
+    ctx.clearRect(0,0,W,H);
+    ctx.strokeStyle='rgba(0,255,255,0.015)'; ctx.lineWidth=.5;
+    const hs=55,hh=hs*Math.sqrt(3)/2;
+    for(let row=0;row<H/hh+2;row++) {
+      for(let col=0;col<W/hs+2;col++) {
+        const ox=col*hs*1.5, oy=row*hh*2+(col%2?hh:0);
+        ctx.beginPath();
+        for(let i=0;i<6;i++){const a=Math.PI/3*i;ctx.lineTo(ox+hs*Math.cos(a),oy+hs*Math.sin(a));}
+        ctx.closePath(); ctx.stroke();
+      }
+    }
+    drawConnections();
+    particles.forEach(p=>{p.update();p.draw();});
+    requestAnimationFrame(loop);
+  }
+
+  window.addEventListener('resize',()=>{resize();particles=Array.from({length:N},()=>new P())});
+  document.addEventListener('mousemove',e=>{mouse.x=e.clientX;mouse.y=e.clientY});
+  resize(); particles=Array.from({length:N},()=>new P()); loop();
+})();
+
+// ─────────────────────────────────────────────
+// SYS CLOCK
+// ─────────────────────────────────────────────
+setInterval(()=>{ document.getElementById('sbClock').textContent=new Date().toTimeString().slice(0,8); },1000);
+
+// ─────────────────────────────────────────────
+// TAB SWITCH
+// ─────────────────────────────────────────────
+function switchTab(tab) {
+  document.querySelectorAll('.auth-tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.auth-panel').forEach(p=>p.classList.remove('active'));
+  document.getElementById('tab'+cap(tab)).classList.add('active');
+  document.getElementById('panel'+cap(tab)).classList.add('active');
+  clearAllErrors();
+}
+function cap(s){return s.charAt(0).toUpperCase()+s.slice(1)}
+
+// ─────────────────────────────────────────────
+// TOAST
+// ─────────────────────────────────────────────
+function toast(title, msg, type='info') {
+  const zone = document.getElementById('toastZone');
+  const icons={info:'fa-circle-info',error:'fa-triangle-exclamation',success:'fa-circle-check',warn:'fa-triangle-exclamation'};
+  const div=document.createElement('div');
+  div.className=`toast t-${type}`;
+  div.innerHTML=`<i class="fa-solid ${icons[type]||icons.info}"></i><div class="toast-col"><div class="toast-ttl">${title}</div><div class="toast-msg">${msg}</div></div>`;
+  zone.appendChild(div);
+  setTimeout(()=>{div.classList.add('toast-out');div.addEventListener('animationend',()=>div.remove());},4500);
+}
+
+// ─────────────────────────────────────────────
+// PASSWORD TOGGLE
+// ─────────────────────────────────────────────
+function togglePwd(id, btn) {
+  const inp = document.getElementById(id);
+  const isPass = inp.type === 'password';
+  inp.type = isPass ? 'text' : 'password';
+  btn.innerHTML = isPass ? '<i class="fa-regular fa-eye-slash"></i>' : '<i class="fa-regular fa-eye"></i>';
+}
+
+// ─────────────────────────────────────────────
+// PASSWORD STRENGTH
+// ─────────────────────────────────────────────
+function checkStrength(val) {
+  const bars = [1,2,3,4].map(i=>document.getElementById('sb'+i));
+  const label = document.getElementById('strengthLabel');
+  let score = 0;
+  if(val.length>=8) score++;
+  if(/[A-Z]/.test(val)) score++;
+  if(/[0-9]/.test(val)) score++;
+  if(/[^A-Za-z0-9]/.test(val)) score++;
+
+  const colors = ['#ff2244','#ff6600','#ffc400','#00ff88'];
+  const labels = ['WEAK','FAIR','GOOD','STRONG'];
+  bars.forEach((b,i)=>{b.style.background=i<score?colors[score-1]:'rgba(255,255,255,0.06)'});
+  label.textContent = val.length===0 ? 'ENTER PASSWORD' : labels[score-1]||'WEAK';
+  label.style.color = val.length===0 ? 'var(--c-dim)' : colors[score-1];
+  label.style.color = val.length===0 ? 'var(--c-dim)' : colors[score-1];
+}
+
+// ─────────────────────────────────────────────
+// ERROR HELPERS
+// ─────────────────────────────────────────────
+function setErr(id, msg) {
+  const el=document.getElementById(id);
+  el.textContent=msg; el.classList.add('show');
+}
+function clearErr(id) {
+  const el=document.getElementById(id);
+  el.textContent=''; el.classList.remove('show');
+}
+function shakeInput(id) { document.getElementById(id).classList.add('error-field'); setTimeout(()=>document.getElementById(id).classList.remove('error-field'),500); }
+function clearAllErrors() {
+  ['loginEmailErr','loginPassErr','loginTermsErr','regNameErr','regEmailErr','regPassErr','regConfirmErr','termsErr']
+    .forEach(id=>{const el=document.getElementById(id);if(el){el.textContent='';el.classList.remove('show')}});
+}
+
+// ─────────────────────────────────────────────
+// SUCCESS OVERLAY
+// ─────────────────────────────────────────────
+function showSuccess(title, sub, redirectMsg, redirectUrl, delay=2500) {
+  const ov = document.getElementById('successOverlay');
+  document.getElementById('successTitle').textContent = title;
+  document.getElementById('successSub').textContent = sub;
+  document.getElementById('successRedirect').textContent = redirectMsg;
+  ov.style.display = 'flex';
+  setTimeout(()=>{ window.location.href = redirectUrl; }, delay);
+}
+
+// ─────────────────────────────────────────────
+// LOADING STATE
+// ─────────────────────────────────────────────
+function setLoading(btnId, on) {
+  const btn = document.getElementById(btnId);
+  btn.disabled = on;
+  btn.classList.toggle('loading', on);
+}
+
+// ─────────────────────────────────────────────
+// LOGIN
+// ─────────────────────────────────────────────
+async function handleLogin() {
+  clearAllErrors();
+  const email = document.getElementById('loginEmail').value.trim();
+  const pass  = document.getElementById('loginPass').value;
+  const terms = document.getElementById('agreeTermsLogin').checked;
+  let valid   = true;
+
+  if (!email || !/^[^@]+@[^@]+\.[^@]+$/.test(email)) {
+    setErr('loginEmailErr','Enter a valid email address'); shakeInput('loginEmail'); valid=false;
+  }
+  if (!pass || pass.length < 6) {
+    setErr('loginPassErr','Password must be at least 6 characters'); shakeInput('loginPass'); valid=false;
+  }
+  if (!terms) {
+    setErr('loginTermsErr','You must accept system terms to authenticate'); valid=false;
+  }
+  if (!valid) return;
+
+  setLoading('btnLogin', true);
+  try {
+    const { data, error } = await sb.auth.signInWithPassword({ email, password: pass });
+    if (error) throw error;
+    toast('Authenticated', `Welcome back, ${data.user.email}`, 'success');
+    showSuccess('Access Granted', `Session initialized for ${data.user.email}`, 'Redirecting to directory...', 'index.html', 2000);
+  } catch(err) {
+    toast('Authentication Failed', err.message || 'Invalid credentials', 'error');
+    shakeInput('loginEmail'); shakeInput('loginPass');
+  } finally {
+    setLoading('btnLogin', false);
+  }
+}
+
+// ─────────────────────────────────────────────
+// REGISTER
+// ─────────────────────────────────────────────
+async function handleRegister() {
+  clearAllErrors();
+  const name    = document.getElementById('regName').value.trim();
+  const email   = document.getElementById('regEmail').value.trim();
+  const pass    = document.getElementById('regPass').value;
+  const confirm = document.getElementById('regConfirm').value;
+  const terms   = document.getElementById('agreeTerms').checked;
+  let valid     = true;
+
+  if (!name || name.length < 2) {
+    setErr('regNameErr','Operator name must be at least 2 characters'); shakeInput('regName'); valid=false;
+  }
+  if (!email || !/^[^@]+@[^@]+\.[^@]+$/.test(email)) {
+    setErr('regEmailErr','Enter a valid email address'); shakeInput('regEmail'); valid=false;
+  }
+  if (!pass || pass.length < 8) {
+    setErr('regPassErr','Password must be at least 8 characters'); shakeInput('regPass'); valid=false;
+  }
+  if (pass !== confirm) {
+    setErr('regConfirmErr','Passwords do not match'); shakeInput('regConfirm'); valid=false;
+  }
+  if (!terms) {
+    setErr('termsErr','You must accept system terms to register'); valid=false;
+  }
+  if (!valid) return;
+
+  setLoading('btnRegister', true);
+  try {
+    const { data, error } = await sb.auth.signUp({
+      email,
+      password: pass,
+      options: {
+        data: { full_name: name, display_name: name },
+        emailRedirectTo: window.location.origin + '/auth.html'
+      }
+    });
+    if (error) throw error;
+
+    // Check if email confirmation is needed
+    const needsConfirm = data.user && !data.session;
+    if (needsConfirm) {
+      toast('Verify Email', 'Check your inbox and confirm your email to activate.', 'warn');
+      showSuccess(
+        'Account Created',
+        `A verification link has been sent to ${email}. Please check your inbox and confirm your email before signing in.`,
+        'Check your email to verify your account',
+        'auth.html',
+        5000
+      );
+    } else {
+      toast('Account Created', `Welcome to NEXUS CORE, ${name}!`, 'success');
+      showSuccess('Account Created', `Profile initialized for ${email}. Establishing session...`, 'Redirecting to intelligence directory...', 'index.html', 2500);
+    }
+  } catch(err) {
+    toast('Registration Failed', err.message || 'Unable to create account', 'error');
+  } finally {
+    setLoading('btnRegister', false);
+  }
+}
+
+// ─────────────────────────────────────────────
+// FORGOT PASSWORD
+// ─────────────────────────────────────────────
+async function handleForgotPassword() {
+  const email = document.getElementById('loginEmail').value.trim();
+  if (!email || !/^[^@]+@[^@]+\.[^@]+$/.test(email)) {
+    setErr('loginEmailErr','Enter your email above first'); shakeInput('loginEmail');
+    toast('Email Required', 'Enter your email in the field above first.', 'warn');
+    return;
+  }
+  try {
+    const { error } = await sb.auth.resetPasswordForEmail(email, {
+      redirectTo: window.location.origin + '/auth.html'
+    });
+    if (error) throw error;
+    toast('Reset Sent', `Password reset link sent to ${email}`, 'success');
+  } catch(err) {
+    toast('Reset Failed', err.message || 'Unable to send reset link', 'error');
+  }
+}
+
+// ─────────────────────────────────────────────
+// ENTER KEY SUPPORT
+// ─────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Enter') return;
+  const loginActive = document.getElementById('panelLogin').classList.contains('active');
+  if (loginActive) handleLogin();
+  else handleRegister();
+});
+
+// ─────────────────────────────────────────────
+// TERMS MODAL
+// ─────────────────────────────────────────────
+function showTerms() {
+  document.getElementById('termsOverlay').style.display = 'flex';
+}
+function closeTerms() {
+  document.getElementById('termsOverlay').style.display = 'none';
+}
+
+// Handle auth state change (for OAuth redirects)
+sb.auth.onAuthStateChange((event, session) => {
+  if (event === 'SIGNED_IN' && session) {
+    toast('Authenticated', `Welcome, ${session.user.email}`, 'success');
+    setTimeout(() => window.location.href = 'index.html', 800);
+  }
+});
+</script>
+</body>
+</html>

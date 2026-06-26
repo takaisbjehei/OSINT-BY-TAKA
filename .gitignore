@@ -1,0 +1,6 @@
+node_modules/
+.env
+.vercel/
+server.js
+package.json
+package-lock.json
