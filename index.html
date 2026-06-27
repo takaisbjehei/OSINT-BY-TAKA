@@ -1187,6 +1187,9 @@ footer{
     <div class="sys-bar-right">
       <div class="sys-metric"><span>OP</span><span class="val" id="operatorId">ANONYMOUS</span></div>
       <div class="sys-metric warn"><span>LATENCY</span><span class="val" id="sysLatency">12ms</span></div>
+      <a href="https://instagram.com/takadori12" target="_blank" style="background:rgba(0,153,255,0.1); border:1px solid rgba(0,153,255,0.25); color:var(--c-cyan); font-family:var(--f-mono); font-size:0.65rem; padding:0.2rem 0.6rem; border-radius:4px; cursor:pointer; margin-right:0.5rem; text-transform:uppercase; text-decoration:none; display:inline-block;">
+         <i class="fa-brands fa-instagram"></i> Get More Limits
+      </a>
       <button id="signOutBtn" style="background:rgba(255,34,68,0.1); border:1px solid rgba(255,34,68,0.25); color:var(--c-red); font-family:var(--f-mono); font-size:0.65rem; padding:0.2rem 0.6rem; border-radius:4px; cursor:pointer; margin-right:1rem; text-transform:uppercase;">
          <i class="fa-solid fa-right-from-bracket"></i> Sign Out
       </button>
@@ -2128,8 +2131,8 @@ async function doLookup(query, mode) {
 // ─────────────────────────────────────────────
 renderHistory();
 
-// Always show gate on load
-gateOverlay.style.display = 'flex';
+// Gate will be shown in checkAuth if needed
+gateOverlay.style.display = 'none';
 
 // Gate terminal log helper
 function gateLog(msg, type='ok') {
@@ -2165,6 +2168,9 @@ document.getElementById('gateVerifyBtn').addEventListener('click', async () => {
   if (user.toLowerCase() === CFG.igUser.toLowerCase()) {
     gateLog('IDENTITY VERIFIED', 'ok');
     gateLog('ACCESS GRANTED', 'ok');
+    if (typeof currentUserId !== 'undefined') {
+      localStorage.setItem('ig_gate_passed_' + currentUserId, 'true');
+    }
     setTimeout(() => {
       document.getElementById('gateOverlay').style.opacity = '0';
       setTimeout(() => document.getElementById('gateOverlay').style.display = 'none', 500);
@@ -2203,6 +2209,13 @@ async function checkAuth() {
 
     const user = session.user;
     currentUserId = user.id; // Bind limits to this exact user
+    
+    // Only show the gate if this user hasn't passed it yet
+    if (localStorage.getItem('ig_gate_passed_' + user.id) !== 'true') {
+      gateOverlay.style.display = 'flex';
+    } else {
+      gateOverlay.style.display = 'none';
+    }
     
     // Fetch live backend limits on load
     fetchCurrentUsage();
