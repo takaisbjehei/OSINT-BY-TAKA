@@ -1262,8 +1262,8 @@ footer{
       </div>
       <div class="stat-card" style="--accent:var(--c-gold)">
         <i class="fa-solid fa-magnifying-glass stat-icon"></i>
-        <div class="stat-val"><span class="counter" data-target="18432">0</span></div>
-        <div class="stat-lbl">Queries Today</div>
+        <div class="stat-val"><span class="counter" id="queriesCounter" data-target="427">0</span></div>
+        <div class="stat-lbl">Total Queries</div>
       </div>
       <div class="stat-card" style="--accent:var(--c-violet)">
         <i class="fa-solid fa-server stat-icon"></i>
@@ -2063,6 +2063,20 @@ async function fetchCurrentUsage() {
       const json = await res.json();
       if (json.mobile) updateLimitUI('mobile', json.mobile.usage, json.mobile.max, json.mobile.reset_at);
       if (json.aadhaar) updateLimitUI('aadhaar', json.aadhaar.usage, json.aadhaar.max, json.aadhaar.reset_at);
+      
+      if (json.totalQueries !== undefined) {
+        const queryEl = document.getElementById('queriesCounter');
+        if (queryEl) {
+          const total = 427 + parseInt(json.totalQueries, 10);
+          let current = parseInt(queryEl.textContent.replace(/\D/g,'')) || 0;
+          const step = (total - current) / 40;
+          const timer = setInterval(() => {
+            current = Math.min(current + step, total);
+            queryEl.textContent = Math.floor(current).toLocaleString();
+            if (current >= total) clearInterval(timer);
+          }, 25);
+        }
+      }
     }
   } catch(e){ console.error("Error fetching initial limits:", e); }
 }

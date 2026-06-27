@@ -46,9 +46,21 @@ export default async function handler(req, res) {
     const mobileData = await getCount('mobile');
     const aadhaarData = await getCount('aadhaar');
 
+    // 3. Fetch total queries globally
+    const totalRes = await fetch(`${supaUrl}/rest/v1/rpc/get_total_queries`, {
+      method: 'POST',
+      headers: {
+        'apikey': supaKey,
+        'Authorization': authHeader,
+        'Content-Type': 'application/json'
+      }
+    });
+    const totalQueries = await totalRes.json();
+
     return res.status(200).json({
       mobile: mobileData,
-      aadhaar: aadhaarData
+      aadhaar: aadhaarData,
+      totalQueries: totalQueries
     });
 
   } catch (err) {
