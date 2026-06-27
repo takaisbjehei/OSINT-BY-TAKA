@@ -29,9 +29,6 @@ export default async function handler(req, res) {
     }
     const user = await userRes.json();
 
-    // Configuration for limits
-    const limitHours = parseInt(process.env.RATE_LIMIT_HOURS || '5', 10);
-
     // 2. Fetch both mobile and aadhaar counts via RPC
     const getCount = async (type) => {
       const res = await fetch(`${supaUrl}/rest/v1/rpc/check_rate_limit`, {
@@ -41,17 +38,17 @@ export default async function handler(req, res) {
           'Authorization': authHeader,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ p_user_id: user.id, p_search_type: type, p_hours: limitHours })
+        body: JSON.stringify({ p_user_id: user.id, p_search_type: type })
       });
       return await res.json();
     };
 
-    const mobileCount = await getCount('mobile');
-    const aadhaarCount = await getCount('aadhaar');
+    const mobileData = await getCount('mobile');
+    const aadhaarData = await getCount('aadhaar');
 
     return res.status(200).json({
-      mobile: typeof mobileCount === 'number' ? mobileCount : 0,
-      aadhaar: typeof aadhaarCount === 'number' ? aadhaarCount : 0
+      mobile: mobileData,
+      aadhaar: aadhaarData
     });
 
   } catch (err) {

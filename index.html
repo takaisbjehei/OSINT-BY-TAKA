@@ -1401,9 +1401,7 @@ const CFG = {
   apiUrl: '/api/lookup?number=',
   testMobile: '1234567890',
   testAlt:    '123456789012',
-  igUser:     'takadori12',
-  limitMax:   5,
-  limitHours: 5
+  igUser:     'takadori12'
 };
 
 // ─────────────────────────────────────────────
@@ -1985,19 +1983,23 @@ async function fetchCurrentUsage() {
     }); 
     if (res.ok) {
       const json = await res.json();
-      if (json.mobile !== undefined) updateLimitUI('mobile', json.mobile);
-      if (json.aadhaar !== undefined) updateLimitUI('aadhaar', json.aadhaar);
+      if (json.mobile) updateLimitUI('mobile', json.mobile.usage, json.mobile.max);
+      if (json.aadhaar) updateLimitUI('aadhaar', json.aadhaar.usage, json.aadhaar.max);
     }
   } catch(e){ console.error("Error fetching initial limits:", e); }
 }
 
-function updateLimitUI(type, usage) {
+function updateLimitUI(type, usage, max) {
   if (type === 'mobile') {
     const mEl = document.getElementById('limitMobile');
+    const maxEl = document.getElementById('limitMobileMax');
     if(mEl) mEl.textContent = usage;
+    if(maxEl && max !== undefined) maxEl.textContent = max;
   } else if (type === 'aadhaar') {
     const aEl = document.getElementById('limitAadhaar');
+    const maxEl = document.getElementById('limitAadhaarMax');
     if(aEl) aEl.textContent = usage;
+    if(maxEl && max !== undefined) maxEl.textContent = max;
   }
 }
 
@@ -2135,13 +2137,6 @@ async function checkAuth() {
   try {
     const res = await fetch('/api/config');
     const cfg = await res.json();
-    
-    // Apply dynamic limits from environment
-    if (cfg.limitMax) CFG.limitMax = cfg.limitMax;
-    if (cfg.limitHours) CFG.limitHours = cfg.limitHours;
-    
-    const maxEls = [document.getElementById('limitMobileMax'), document.getElementById('limitAadhaarMax')];
-    maxEls.forEach(el => { if (el) el.textContent = CFG.limitMax; });
     
     sb = supabase.createClient(cfg.url, cfg.key);
     
