@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>NEXUS CORE — Authentication</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com; connect-src 'self' https://mcyhsncbqmrokaosmlin.supabase.co https://*.supabase.co; img-src 'self' data: https:;">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=JetBrains+Mono:wght@300;400;700&family=Rajdhani:wght@300;400;600;700&display=swap" rel="stylesheet">
@@ -927,7 +928,15 @@ function setLoading(btnId, on) {
 // ─────────────────────────────────────────────
 // LOGIN
 // ─────────────────────────────────────────────
+let failedLoginCount = 0;
+let loginLockout = false;
+
 async function handleLogin() {
+  if (loginLockout) {
+    toast('Security Lockout', 'Too many failed attempts. Please wait 30 seconds.', 'error');
+    return;
+  }
+
   clearAllErrors();
   const email = document.getElementById('loginEmail').value.trim();
   const pass  = document.getElementById('loginPass').value;
@@ -937,8 +946,9 @@ async function handleLogin() {
   if (!email || !/^[^@]+@[^@]+\.[^@]+$/.test(email)) {
     setErr('loginEmailErr','Enter a valid email address'); shakeInput('loginEmail'); valid=false;
   }
-  if (!pass || pass.length < 6) {
-    setErr('loginPassErr','Password must be at least 6 characters'); shakeInput('loginPass'); valid=false;
+  // Enforce strong password requirement for login (alphanumeric validation)
+  if (!pass || pass.length < 6 || /[^a-zA-Z0-9\!\@\#\$\%\^\&\*\(\)\_\+\-\=\.]/.test(pass)) {
+    setErr('loginPassErr','Password contains invalid characters or is too short'); shakeInput('loginPass'); valid=false;
   }
   if (!terms) {
     setErr('loginTermsErr','You must accept system terms to authenticate'); valid=false;
@@ -949,13 +959,32 @@ async function handleLogin() {
   try {
     const { data, error } = await sb.auth.signInWithPassword({ email, password: pass });
     if (error) throw error;
+    failedLoginCount = 0; // Reset on success
     toast('Authenticated', `Welcome back, ${data.user.email}`, 'success');
     showSuccess('Access Granted', `Session initialized for ${data.user.email}`, 'Redirecting to directory...', 'index.html', 2000);
   } catch(err) {
-    toast('Authentication Failed', err.message || 'Invalid credentials', 'error');
-    shakeInput('loginEmail'); shakeInput('loginPass');
+    failedLoginCount++;
+    if (failedLoginCount >= 3) {
+      toast('Security Lockout', 'Too many failed attempts. Login disabled for 30 seconds.', 'error');
+      loginLockout = true;
+      const btn = document.getElementById('btnLogin');
+      const origText = btn.innerHTML;
+      btn.innerHTML = 'LOCKED (30s)';
+      btn.disabled = true;
+      btn.style.backgroundColor = 'var(--c-red)';
+      setTimeout(() => {
+        loginLockout = false;
+        failedLoginCount = 0;
+        btn.innerHTML = origText;
+        btn.disabled = false;
+        btn.style.backgroundColor = '';
+      }, 30000);
+    } else {
+      toast('Authentication Failed', err.message || 'Invalid credentials', 'error');
+      shakeInput('loginEmail'); shakeInput('loginPass');
+    }
   } finally {
-    setLoading('btnLogin', false);
+    if(!loginLockout) setLoading('btnLogin', false);
   }
 }
 

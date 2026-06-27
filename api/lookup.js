@@ -32,7 +32,7 @@ export default async function handler(req, res) {
     }
     const user = await userRes.json();
 
-    // 2. Check Rate Limit via RPC (Returns JSON: { usage, max, hours })
+    // 2. Check Rate Limit via RPC (Returns JSON: { usage, max, hours, cooldown_active, reset_at })
     const limitRes = await fetch(`${supaUrl}/rest/v1/rpc/check_rate_limit`, {
       method: 'POST',
       headers: {
@@ -43,9 +43,21 @@ export default async function handler(req, res) {
       body: JSON.stringify({ p_user_id: user.id, p_search_type: type })
     });
     
+    if (!limitRes.ok) {
+      console.error('Rate limit check failed:', await limitRes.text());
+      return res.status(500).json({ error: 'Internal server error during rate limit check' });
+    }
+
     const limitData = await limitRes.json();
+
+    // Check 5-second anti-spam cooldown
+    if (limitData.cooldown_active) {
+      return res.status(429).json({ error: 'Anti-spam cooldown active. Please wait 5 seconds between searches.', cooldown: true });
+    }
+
+    // Check maximum limits
     if (limitData.usage >= limitData.max) {
-      return res.status(429).json({ error: 'Rate limit exceeded', limitReached: true, limitMax: limitData.max });
+      return res.status(429).json({ error: 'Rate limit exceeded', limitReached: true, limitMax: limitData.max, limitReset: limitData.reset_at });
     }
 
     // 3. Construct the secure URL

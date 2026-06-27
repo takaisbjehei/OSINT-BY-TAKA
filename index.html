@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OSINT Phone Number Intel & Lookup System</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com; connect-src 'self' https://mcyhsncbqmrokaosmlin.supabase.co https://*.supabase.co; img-src 'self' data: https:;">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=JetBrains+Mono:wght@300;400;700&family=Rajdhani:wght@300;400;600;700&display=swap" rel="stylesheet">
@@ -2101,10 +2102,35 @@ function updateLimitUI(type, usage, max, resetAt) {
   }
 }
 
+function debounceSearchBtn() {
+  const btn = document.getElementById('searchBtn');
+  if(!btn) return;
+  btn.disabled = true;
+  let secs = 5;
+  const origText = btn.innerHTML;
+  btn.innerHTML = `WAIT ${secs}s`;
+  const iv = setInterval(() => {
+    secs--;
+    if(secs <= 0) {
+      clearInterval(iv);
+      btn.disabled = false;
+      btn.innerHTML = origText;
+    } else {
+      btn.innerHTML = `WAIT ${secs}s`;
+    }
+  }, 1000);
+}
+
 // ─────────────────────────────────────────────
 // MAIN LOOKUP
 // ─────────────────────────────────────────────
 async function doLookup(query, mode) {
+  // Input Sanitization (allow only alphanumeric and basic punctuation)
+  if (/[^a-zA-Z0-9\s\.\-\+]/.test(query)) {
+    toast('Invalid Input', 'Query contains forbidden characters.', 'error');
+    return;
+  }
+
   const token = await getAuthToken();
   if (!token) {
     toast('Unauthorized', 'Missing session token.', 'error');
@@ -2127,6 +2153,11 @@ async function doLookup(query, mode) {
     
     if (res.status === 429) {
       hideScanner();
+      if (json.cooldown) {
+        toast('Spam Protection', 'Please wait 5 seconds between searches.', 'warn');
+        debounceSearchBtn();
+        return;
+      }
       const reachedMax = json.limitMax || 5;
       toast('Limit Reached', `You have exhausted your ${reachedMax} searches for ${mode.toUpperCase()} queries. Wait for the reset timer.`, 'error');
       updateLimitUI(mode, reachedMax, reachedMax, json.limitReset || json.reset_at);
