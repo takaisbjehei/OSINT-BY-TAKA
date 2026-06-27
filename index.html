@@ -1989,6 +1989,40 @@ async function getAuthToken() {
   return null;
 }
 
+let limitTimerInterval = null;
+
+function startLimitTimer(oldestSearchStr, limitHours) {
+  if (limitTimerInterval) clearInterval(limitTimerInterval);
+  const timerEl = document.getElementById('limitTimer');
+  
+  if (!oldestSearchStr || !timerEl) {
+    if (timerEl) timerEl.textContent = '--:--:--';
+    return;
+  }
+  
+  const resetTime = new Date(oldestSearchStr).getTime() + (limitHours * 60 * 60 * 1000);
+  
+  limitTimerInterval = setInterval(() => {
+    const now = Date.now();
+    const diff = resetTime - now;
+    
+    if (diff <= 0) {
+      clearInterval(limitTimerInterval);
+      timerEl.textContent = '00:00:00';
+      return;
+    }
+    
+    const h = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+    const s = Math.floor((diff % (1000 * 60)) / 1000);
+    
+    timerEl.textContent = 
+      String(h).padStart(2, '0') + ':' + 
+      String(m).padStart(2, '0') + ':' + 
+      String(s).padStart(2, '0');
+  }, 1000);
+}
+
 // Function to pull counts from backend on load
 async function fetchCurrentUsage() {
   const t = await getAuthToken();
@@ -1999,13 +2033,13 @@ async function fetchCurrentUsage() {
     }); 
     if (res.ok) {
       const json = await res.json();
-      if (json.mobile) updateLimitUI('mobile', json.mobile.usage, json.mobile.max);
-      if (json.aadhaar) updateLimitUI('aadhaar', json.aadhaar.usage, json.aadhaar.max);
+      if (json.mobile) updateLimitUI('mobile', json.mobile.usage, json.mobile.max, json.mobile.oldest_search, json.mobile.hours);
+      if (json.aadhaar) updateLimitUI('aadhaar', json.aadhaar.usage, json.aadhaar.max, json.aadhaar.oldest_search, json.aadhaar.hours);
     }
   } catch(e){ console.error("Error fetching initial limits:", e); }
 }
 
-function updateLimitUI(type, usage, max) {
+function updateLimitUI(type, usage, max, oldestSearch, limitHours) {
   if (type === 'mobile') {
     const mEl = document.getElementById('limitMobile');
     const maxEl = document.getElementById('limitMobileMax');
@@ -2016,6 +2050,10 @@ function updateLimitUI(type, usage, max) {
     const maxEl = document.getElementById('limitAadhaarMax');
     if(aEl) aEl.textContent = usage;
     if(maxEl && max !== undefined) maxEl.textContent = max;
+  }
+  
+  if (oldestSearch && limitHours && activeMode === type) {
+    startLimitTimer(oldestSearch, limitHours);
   }
 }
 
@@ -2047,7 +2085,7 @@ async function doLookup(query, mode) {
       hideScanner();
       const reachedMax = json.limitMax || 5;
       toast('Limit Reached', `You have exhausted your ${reachedMax} searches for ${mode.toUpperCase()} queries. Wait for the reset timer.`, 'error');
-      updateLimitUI(mode, reachedMax, reachedMax);
+      updateLimitUI(mode, reachedMax, reachedMax, json.limitOldest || json.oldest_search, json.limitHours || json.hours);
       return;
     }
     
@@ -2058,7 +2096,7 @@ async function doLookup(query, mode) {
     
     // Update the UI with the backend usage counter
     if (json.current_usage !== undefined) {
-      updateLimitUI(mode, json.current_usage, json.limitMax);
+      updateLimitUI(mode, json.current_usage, json.limitMax, json.limitOldest, json.limitHours);
     }
 
     if (json && json.data && json.data.length > 0) {

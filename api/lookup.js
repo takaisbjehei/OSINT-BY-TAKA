@@ -78,7 +78,13 @@ export default async function handler(req, res) {
     });
 
     // Send the response back to the frontend with the new count and dynamic max
-    res.status(200).json({ ...data, current_usage: limitData.usage + 1, limitMax: limitData.max });
+    res.status(200).json({ 
+      ...data, 
+      current_usage: limitData.usage + 1, 
+      limitMax: limitData.max,
+      limitHours: limitData.hours,
+      limitOldest: limitData.oldest_search
+    });
 
   } catch (error) {
     console.error('Lookup Error:', error.message);
