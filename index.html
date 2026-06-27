@@ -2136,7 +2136,7 @@ async function checkAuth() {
 
     const user = session.user;
     currentUserId = user.id; // Bind limits to this exact user
-    initRateLimiter(); // Load their limits
+    // initRateLimiter() was removed as limits are now backend-enforced
     
     // Update sys-bar with logged-in user email
     const operatorEl = document.getElementById('operatorId');
