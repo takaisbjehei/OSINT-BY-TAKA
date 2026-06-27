@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>NEXUS CORE — Authentication</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com; connect-src 'self' https://mcyhsncbqmrokaosmlin.supabase.co https://*.supabase.co; img-src 'self' data: https:;">
+<title>TAKA CORE — Authentication</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com; connect-src 'self' ws://localhost:* http://localhost:* https://mcyhsncbqmrokaosmlin.supabase.co https://*.supabase.co https://cdn.jsdelivr.net; img-src 'self' data: https:;">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=JetBrains+Mono:wght@300;400;700&family=Rajdhani:wght@300;400;600;700&display=swap" rel="stylesheet">
@@ -524,7 +524,7 @@ footer{
         <span class="logo-hex-inner"><i class="fa-solid fa-satellite-dish"></i></span>
       </div>
       <div>
-        <div class="logo-name">NEXUS CORE</div>
+        <div class="logo-name">TAKA CORE</div>
         <div class="logo-sub">Intelligence Directory System <span>v3.7.1</span></div>
       </div>
     </div>
@@ -575,7 +575,7 @@ footer{
             <label class="field-label"><i class="fa-solid fa-envelope"></i>Email Address</label>
             <div class="field-input-wrap">
               <i class="fa-solid fa-envelope field-icon"></i>
-              <input type="email" id="loginEmail" class="field-input" placeholder="operator@nexus.io" autocomplete="email">
+              <input type="email" id="loginEmail" class="field-input" placeholder="operator@taka.io" autocomplete="email">
             </div>
             <span class="field-err" id="loginEmailErr"></span>
           </div>
@@ -633,7 +633,7 @@ footer{
             <label class="field-label"><i class="fa-solid fa-envelope"></i>Email Address</label>
             <div class="field-input-wrap">
               <i class="fa-solid fa-envelope field-icon"></i>
-              <input type="email" id="regEmail" class="field-input" placeholder="operator@nexus.io" autocomplete="email">
+              <input type="email" id="regEmail" class="field-input" placeholder="operator@taka.io" autocomplete="email">
             </div>
             <span class="field-err" id="regEmailErr"></span>
           </div>
@@ -690,7 +690,7 @@ footer{
 
   <!-- Footer -->
   <footer>
-    <div class="ft-left">NEXUS CORE <span>v3.7.1</span> &nbsp;•&nbsp; AUTH ENGINE <span>NEXUS</span> &nbsp;•&nbsp; PROTOCOL <span>JWT/PKCE</span></div>
+    <div class="ft-left">TAKA CORE <span>v3.7.1</span> &nbsp;•&nbsp; AUTH ENGINE <span>TAKA</span> &nbsp;•&nbsp; PROTOCOL <span>JWT/PKCE</span></div>
     <div class="ft-right">SESSION ENCRYPTED &nbsp;<span style="color:var(--c-green)">AES-256</span></div>
   </footer>
 
@@ -704,7 +704,7 @@ footer{
     </div>
     <div class="terms-body">
       <h3>1. Authorized Use Only</h3>
-      <p>NEXUS CORE (the "System") is an OSINT (Open Source Intelligence) aggregation tool designed exclusively for authorized cybersecurity research, threat intelligence, and legitimate investigative purposes. By accessing this system, you confirm you have explicit authorization to utilize these tools.</p>
+      <p>TAKA CORE (the "System") is an OSINT (Open Source Intelligence) aggregation tool designed exclusively for authorized cybersecurity research, threat intelligence, and legitimate investigative purposes. By accessing this system, you confirm you have explicit authorization to utilize these tools.</p>
       
       <h3>2. Data Disclaimer & Liability</h3>
       <p>The System acts strictly as a passthrough search directory. We do not host, store, own, or verify the accuracy of the data presented.</p>
@@ -1041,7 +1041,7 @@ async function handleRegister() {
         5000
       );
     } else {
-      toast('Account Created', `Welcome to NEXUS CORE, ${name}!`, 'success');
+      toast('Account Created', `Welcome to TAKA CORE, ${name}!`, 'success');
       showSuccess('Account Created', `Profile initialized for ${email}. Establishing session...`, 'Redirecting to intelligence directory...', 'index.html', 2500);
     }
   } catch(err) {
