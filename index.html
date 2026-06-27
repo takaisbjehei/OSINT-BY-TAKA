@@ -2029,9 +2029,9 @@ async function doLookup(query, mode) {
     
     if (res.status === 429) {
       hideScanner();
-      const reachedMax = json.limitMax || CFG.limitMax;
+      const reachedMax = json.limitMax || 5;
       toast('Limit Reached', `You have exhausted your ${reachedMax} searches for ${mode.toUpperCase()} queries. Wait for the reset timer.`, 'error');
-      updateLimitUI(mode, reachedMax);
+      updateLimitUI(mode, reachedMax, reachedMax);
       return;
     }
     
@@ -2042,7 +2042,7 @@ async function doLookup(query, mode) {
     
     // Update the UI with the backend usage counter
     if (json.current_usage !== undefined) {
-      updateLimitUI(mode, json.current_usage);
+      updateLimitUI(mode, json.current_usage, json.limitMax);
     }
 
     if (json && json.data && json.data.length > 0) {
