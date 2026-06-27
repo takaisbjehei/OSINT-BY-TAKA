@@ -15,10 +15,10 @@
     // Run session check before full render to prevent layout flash
     const supabaseUrl = "https://mcyhsncbqmrokaosmlin.supabase.co";
     const supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1jeWhzbmNicW1yb2thb3NtbGluIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI4ODI5OTgsImV4cCI6MjA5ODA1ODk5OH0.1RdCfOCqsDv3lyFYq1EyV3z9J3NPvxD9q2iaGNrRgmg";
-    const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+    const supabaseSessionClient = window.supabase.createClient(supabaseUrl, supabaseKey);
     
     async function preCheckAuth() {
-        const { data: { session } } = await supabase.auth.getSession();
+        const { data: { session } } = await supabaseSessionClient.auth.getSession();
         if (!session) {
             window.location.href = "/auth.html";
         } else {
@@ -1145,12 +1145,12 @@ footer{
       <div class="gate-title">Access <em>Restricted</em></div>
       <div class="gate-desc">
         NEXUS CORE requires session authentication.<br>
-        Follow <strong>@Takadori</strong> on Instagram to unlock the number lookup engine.
+        Follow <strong>@takadori12</strong> on Instagram to unlock the number lookup engine.
       </div>
       
-      <a href="https://www.instagram.com/Takadori/" target="_blank" class="btn-insta" id="gateFollowBtn">
+      <a href="https://www.instagram.com/takadori12/" target="_blank" class="btn-insta" id="gateFollowBtn">
         <i class="fa-brands fa-instagram"></i>
-        <span>Follow @Takadori</span>
+        <span>Follow @takadori12</span>
       </a>
       
       <div class="gate-sep">VERIFY SESSION</div>
@@ -1401,7 +1401,7 @@ const CFG = {
   apiUrl: '/api/lookup?number=',
   testMobile: '1234567890',
   testAlt:    '123456789012',
-  igUser:     'Takadori',
+  igUser:     'takadori12',
 };
 
 // ─────────────────────────────────────────────
@@ -1861,10 +1861,9 @@ function renderResults(data) {
   grid.innerHTML = '';
   badge.textContent = `${data.data.length} RECORD(S)`;
 
-  if (data.developer) {
-    devBdg.textContent = `DEV: ${data.developer.toUpperCase()}`;
-    devBdg.style.display = 'block';
-  }
+  // Force developer brand to Takadori
+  devBdg.textContent = `DEV: TAKADORI`;
+  devBdg.style.display = 'block';
 
   if (!data.data.length) {
     grid.innerHTML = `<div class="empty-state">
@@ -1935,7 +1934,27 @@ function renderResults(data) {
             <span class="card-sub-badge">SUBSCRIBER</span>
           </div>
         </div>
-        <div class="card-signal">${sigBar// ─────────────────────────────────────────────
+        <div class="card-signal">${sigBars}</div>
+      </div>
+      <div class="card-body">
+        ${fields}
+      </div>
+      <div class="card-footer">
+        <div><i class="fa-solid fa-clock-three"></i> SYNCED: ${ts}</div>
+      </div>
+    `;
+
+    grid.appendChild(card);
+
+    // Escape and write subscriber name securely (using textContent)
+    const nameEl = document.getElementById(`cn-${uid}`);
+    if (nameEl) nameEl.textContent = displayName.toUpperCase();
+  });
+
+  wrap.style.display = 'flex';
+}
+
+// ─────────────────────────────────────────────
 // RATE LIMITER ENGINE (BACKEND SYNCED)
 // ─────────────────────────────────────────────
 let currentUserId = 'guest';
@@ -1943,6 +1962,100 @@ let cachedToken = null;
 const LIMIT_MAX = 5;
 
 // Only fetch token once to avoid redundant network calls
+async function getAuthToken() {
+  if (cachedToken) return cachedToken;
+  if (!sb) return null;
+  const { data: { session } } = await sb.auth.getSession();
+  if (session) {
+    cachedToken = session.access_token;
+    return cachedToken;
+  }
+  return null;
+}
+
+// Function to pull counts from backend on load
+async function fetchCurrentUsage() {
+  const t = await getAuthToken();
+  if (!t) return;
+  try {
+    const res = await fetch(`/api/lookup-stats`); 
+  } catch(e){}
+}
+
+function updateLimitUI(type, usage) {
+  if (type === 'mobile') {
+    const mEl = document.getElementById('limitMobile');
+    if(mEl) mEl.textContent = usage;
+  } else if (type === 'aadhaar') {
+    const aEl = document.getElementById('limitAadhaar');
+    if(aEl) aEl.textContent = usage;
+  }
+}
+
+// ─────────────────────────────────────────────
+// MAIN LOOKUP
+// ─────────────────────────────────────────────
+async function doLookup(query, mode) {
+  const token = await getAuthToken();
+  if (!token) {
+    toast('Unauthorized', 'Missing session token.', 'error');
+    return;
+  }
+
+  document.getElementById('resultsWrap').style.display = 'none';
+  await runScanner(query);
+
+  try {
+    const url = `/api/lookup?type=${mode}&query=${encodeURIComponent(query)}`;
+
+    const res = await fetch(url, {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+    
+    const json = await res.json();
+    
+    if (res.status === 429) {
+      hideScanner();
+      toast('Limit Reached', `You have exhausted your 5 searches for ${mode.toUpperCase()} queries. Wait for the reset timer.`, 'error');
+      updateLimitUI(mode, 5);
+      return;
+    }
+    
+    if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
+
+    hideScanner();
+    lastResultData = json;
+    
+    // Update the UI with the backend usage counter
+    if (json.current_usage !== undefined) {
+      updateLimitUI(mode, json.current_usage);
+    }
+
+    if (json && json.success && json.data && json.data.length) {
+      renderResults(json);
+      saveHistory(query);
+      toast('Query Complete', `${json.data.length} record(s) retrieved from lookup engine.`, 'success');
+    } else {
+      lastResultData = { data: [] };
+      renderResults({ data: [], developer: json?.developer });
+      toast('No Records', 'Target returned zero matching entries.', 'warn');
+    }
+  } catch (err) {
+    console.error(err);
+    hideScanner();
+
+    const grid = document.getElementById('resGrid');
+    grid.innerHTML = `<div class="empty-state">
+      <i class="fa-solid fa-triangle-exclamation empty-icon" style="color:var(--c-red)"></i>
+      <div class="empty-text" style="color:var(--c-red)">Connection Failed</div>
+      <div class="empty-sub">${err.message || 'Unknown error'}. Verify the API endpoint is online and accepts requests from this origin.</div>
+    </div>`;
+    document.getElementById('countBadge').textContent = 'ERROR';
+  }
+}
+rk calls
 async function getAuthToken() {
   if (cachedToken) return cachedToken;
   if (!sb) return null;
@@ -2039,7 +2152,7 @@ async function doLookup(query, mode) {
     </div>`;
     document.getElementById('countBadge').textContent = 'ERROR';
   }
-
+}
 
 // ─────────────────────────────────────────────
 // INIT
