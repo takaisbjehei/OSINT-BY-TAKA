@@ -2033,7 +2033,7 @@ async function doLookup(query, mode) {
       updateLimitUI(mode, json.current_usage);
     }
 
-    if (json && json.success && json.data && json.data.length) {
+    if (json && json.data && json.data.length > 0) {
       renderResults(json);
       saveHistory(query);
       toast('Query Complete', `${json.data.length} record(s) retrieved from lookup engine.`, 'success');
