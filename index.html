@@ -1275,7 +1275,7 @@ footer{
         </button>
         <button type="button" class="mode-tab" data-mode="aadhaar">
           <i class="fa-solid fa-id-card"></i>
-          <span>Alternative ID</span>
+          <span>AADHAAR</span>
         </button>
       </div>
 
@@ -1400,7 +1400,7 @@ footer{
 const CFG = {
   apiUrl: '/api/lookup?number=',
   testMobile: '1234567890',
-  testAlt:    '123456789012',
+  testAlt:    '1234567890',
   igUser:     'takadori12'
 };
 
@@ -1775,17 +1775,11 @@ document.getElementById('searchForm').addEventListener('submit', e => {
   const raw = searchInput.value.trim();
   const digits = raw.replace(/\D/g, '');
 
-  if (activeMode === 'mobile') {
-    if (digits.length < 8 || digits.length > 15) {
-      toast('Invalid Format', 'Primary contact must be 8–15 digits.', 'error');
-      return;
-    }
-  } else {
-    if (digits.length !== 12) {
-      toast('Invalid Format', 'Alternative ID must be exactly 12 digits.', 'error');
-      return;
-    }
+  if (digits.length < 8 || digits.length > 15) {
+    toast('Invalid Format', 'Number must be between 8–15 digits.', 'error');
+    return;
   }
+  
   doLookup(digits, activeMode);
 });
 
@@ -1861,9 +1855,6 @@ function renderResults(data) {
   grid.innerHTML = '';
   
   let records = data.data || [];
-  if (activeMode === 'aadhaar') {
-    records = records.filter(r => r.id || r.uid || r.aadhaar);
-  }
   
   badge.textContent = `${records.length} RECORD(S)`;
 
@@ -1920,7 +1911,7 @@ function renderResults(data) {
     const fieldLabels = {
       fname: "ASSOCIATED HOLDER",
       address: "STRUCTURAL ADDRESS",
-      id: "ALTERNATIVE IDENTIFIER"
+      id: "AADHAAR"
     };
     const fields = Object.entries(rec)
       .filter(([k]) => !skip.has(k) && k !== null)
