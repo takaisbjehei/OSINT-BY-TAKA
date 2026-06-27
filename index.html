@@ -1991,16 +1991,16 @@ async function getAuthToken() {
 
 let limitTimerInterval = null;
 
-function startLimitTimer(oldestSearchStr, limitHours) {
+function startLimitTimer(resetAt) {
   if (limitTimerInterval) clearInterval(limitTimerInterval);
   const timerEl = document.getElementById('limitTimer');
   
-  if (!oldestSearchStr || !timerEl) {
+  if (!resetAt || !timerEl) {
     if (timerEl) timerEl.textContent = '--:--:--';
     return;
   }
   
-  const resetTime = new Date(oldestSearchStr).getTime() + (limitHours * 60 * 60 * 1000);
+  const resetTime = new Date(resetAt).getTime();
   
   limitTimerInterval = setInterval(() => {
     const now = Date.now();
@@ -2033,13 +2033,13 @@ async function fetchCurrentUsage() {
     }); 
     if (res.ok) {
       const json = await res.json();
-      if (json.mobile) updateLimitUI('mobile', json.mobile.usage, json.mobile.max, json.mobile.oldest_search, json.mobile.hours);
-      if (json.aadhaar) updateLimitUI('aadhaar', json.aadhaar.usage, json.aadhaar.max, json.aadhaar.oldest_search, json.aadhaar.hours);
+      if (json.mobile) updateLimitUI('mobile', json.mobile.usage, json.mobile.max, json.mobile.reset_at);
+      if (json.aadhaar) updateLimitUI('aadhaar', json.aadhaar.usage, json.aadhaar.max, json.aadhaar.reset_at);
     }
   } catch(e){ console.error("Error fetching initial limits:", e); }
 }
 
-function updateLimitUI(type, usage, max, oldestSearch, limitHours) {
+function updateLimitUI(type, usage, max, resetAt) {
   if (type === 'mobile') {
     const mEl = document.getElementById('limitMobile');
     const maxEl = document.getElementById('limitMobileMax');
@@ -2052,8 +2052,8 @@ function updateLimitUI(type, usage, max, oldestSearch, limitHours) {
     if(maxEl && max !== undefined) maxEl.textContent = max;
   }
   
-  if (oldestSearch && limitHours && activeMode === type) {
-    startLimitTimer(oldestSearch, limitHours);
+  if (resetAt && activeMode === type) {
+    startLimitTimer(resetAt);
   }
 }
 
@@ -2085,7 +2085,7 @@ async function doLookup(query, mode) {
       hideScanner();
       const reachedMax = json.limitMax || 5;
       toast('Limit Reached', `You have exhausted your ${reachedMax} searches for ${mode.toUpperCase()} queries. Wait for the reset timer.`, 'error');
-      updateLimitUI(mode, reachedMax, reachedMax, json.limitOldest || json.oldest_search, json.limitHours || json.hours);
+      updateLimitUI(mode, reachedMax, reachedMax, json.limitReset || json.reset_at);
       return;
     }
     
@@ -2096,7 +2096,7 @@ async function doLookup(query, mode) {
     
     // Update the UI with the backend usage counter
     if (json.current_usage !== undefined) {
-      updateLimitUI(mode, json.current_usage, json.limitMax, json.limitOldest, json.limitHours);
+      updateLimitUI(mode, json.current_usage, json.limitMax, json.limitReset);
     }
 
     if (json && json.data && json.data.length > 0) {

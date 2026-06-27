@@ -70,6 +70,7 @@ export default async function handler(req, res) {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
+        user_email: user.email,
         user_id: user.id,
         search_type: type,
         query_target: query,
@@ -82,8 +83,7 @@ export default async function handler(req, res) {
       ...data, 
       current_usage: limitData.usage + 1, 
       limitMax: limitData.max,
-      limitHours: limitData.hours,
-      limitOldest: limitData.oldest_search
+      limitReset: limitData.reset_at
     });
 
   } catch (error) {
