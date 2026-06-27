@@ -32,6 +32,10 @@ export default async function handler(req, res) {
     }
     const user = await userRes.json();
 
+    // Configuration for limits
+    const limitHours = parseInt(process.env.RATE_LIMIT_HOURS || '5', 10);
+    const limitMax = parseInt(process.env.RATE_LIMIT_MAX || '5', 10);
+
     // 2. Check Rate Limit via RPC
     const limitRes = await fetch(`${supaUrl}/rest/v1/rpc/check_rate_limit`, {
       method: 'POST',
@@ -40,12 +44,12 @@ export default async function handler(req, res) {
         'Authorization': authHeader,
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ p_user_id: user.id, p_search_type: type })
+      body: JSON.stringify({ p_user_id: user.id, p_search_type: type, p_hours: limitHours })
     });
     
     const searchCount = await limitRes.json();
-    if (searchCount >= 5) {
-      return res.status(429).json({ error: 'Rate limit exceeded', limitReached: true });
+    if (searchCount >= limitMax) {
+      return res.status(429).json({ error: 'Rate limit exceeded', limitReached: true, limitMax });
     }
 
     // 3. Construct the secure URL based on type

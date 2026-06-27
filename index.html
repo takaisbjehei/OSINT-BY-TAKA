@@ -1299,8 +1299,8 @@ footer{
         </div>
         
         <div class="limit-badge" id="limitBadge" style="font-size:11px; font-weight:600; color:var(--c-text-muted); display:flex; gap:12px; align-items:center; background:var(--c-surface-1); padding:4px 12px; border-radius:4px; border:1px solid rgba(0,255,255,0.1);">
-          <div><i class="fa-solid fa-phone" style="color:var(--c-cyan);"></i> MOB: <span id="limitMobile" style="color:var(--c-text);">0</span>/5</div>
-          <div><i class="fa-solid fa-id-card" style="color:var(--c-purple);"></i> AAD: <span id="limitAadhaar" style="color:var(--c-text);">0</span>/5</div>
+          <div><i class="fa-solid fa-phone" style="color:var(--c-cyan);"></i> MOB: <span id="limitMobile" style="color:var(--c-text);">0</span>/<span id="limitMobileMax">5</span></div>
+          <div><i class="fa-solid fa-id-card" style="color:var(--c-purple);"></i> AAD: <span id="limitAadhaar" style="color:var(--c-text);">0</span>/<span id="limitAadhaarMax">5</span></div>
           <div style="margin-left:5px; border-left:1px solid rgba(255,255,255,0.1); padding-left:10px;"><i class="fa-solid fa-clock"></i> <span id="limitTimer">--:--:--</span></div>
         </div>
 
@@ -1402,6 +1402,8 @@ const CFG = {
   testMobile: '1234567890',
   testAlt:    '123456789012',
   igUser:     'takadori12',
+  limitMax:   5,
+  limitHours: 5
 };
 
 // ─────────────────────────────────────────────
@@ -1567,10 +1569,10 @@ const CFG = {
 
   setInterval(() => {
     const now = new Date();
-    clockEl.textContent = now.toTimeString().slice(0,8);
-    cpuEl.textContent   = (Math.random()*8+2).toFixed(0)+'%';
-    memEl.textContent   = (200+Math.random()*40).toFixed(0)+'MB';
-    latEl.textContent   = (8+Math.random()*20).toFixed(0)+'ms';
+    if (clockEl) clockEl.textContent = now.toTimeString().slice(0,8);
+    if (cpuEl) cpuEl.textContent   = (Math.random()*8+2).toFixed(0)+'%';
+    if (memEl) memEl.textContent   = (200+Math.random()*40).toFixed(0)+'MB';
+    if (latEl) latEl.textContent   = (8+Math.random()*20).toFixed(0)+'ms';
   }, 1000);
 })();
 
@@ -1978,8 +1980,15 @@ async function fetchCurrentUsage() {
   const t = await getAuthToken();
   if (!t) return;
   try {
-    const res = await fetch(`/api/lookup-stats`); 
-  } catch(e){}
+    const res = await fetch(`/api/lookup-stats`, {
+      headers: { 'Authorization': `Bearer ${t}` }
+    }); 
+    if (res.ok) {
+      const json = await res.json();
+      if (json.mobile !== undefined) updateLimitUI('mobile', json.mobile);
+      if (json.aadhaar !== undefined) updateLimitUI('aadhaar', json.aadhaar);
+    }
+  } catch(e){ console.error("Error fetching initial limits:", e); }
 }
 
 function updateLimitUI(type, usage) {
@@ -2018,8 +2027,9 @@ async function doLookup(query, mode) {
     
     if (res.status === 429) {
       hideScanner();
-      toast('Limit Reached', `You have exhausted your 5 searches for ${mode.toUpperCase()} queries. Wait for the reset timer.`, 'error');
-      updateLimitUI(mode, 5);
+      const reachedMax = json.limitMax || CFG.limitMax;
+      toast('Limit Reached', `You have exhausted your ${reachedMax} searches for ${mode.toUpperCase()} queries. Wait for the reset timer.`, 'error');
+      updateLimitUI(mode, reachedMax);
       return;
     }
     
@@ -2125,6 +2135,14 @@ async function checkAuth() {
   try {
     const res = await fetch('/api/config');
     const cfg = await res.json();
+    
+    // Apply dynamic limits from environment
+    if (cfg.limitMax) CFG.limitMax = cfg.limitMax;
+    if (cfg.limitHours) CFG.limitHours = cfg.limitHours;
+    
+    const maxEls = [document.getElementById('limitMobileMax'), document.getElementById('limitAadhaarMax')];
+    maxEls.forEach(el => { if (el) el.textContent = CFG.limitMax; });
+    
     sb = supabase.createClient(cfg.url, cfg.key);
     
     const { data: { session }, error } = await sb.auth.getSession();
@@ -2136,7 +2154,9 @@ async function checkAuth() {
 
     const user = session.user;
     currentUserId = user.id; // Bind limits to this exact user
-    // initRateLimiter() was removed as limits are now backend-enforced
+    
+    // Fetch live backend limits on load
+    fetchCurrentUsage();
     
     // Update sys-bar with logged-in user email
     const operatorEl = document.getElementById('operatorId');
