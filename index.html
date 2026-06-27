@@ -1875,6 +1875,16 @@ function renderResults(data) {
     return;
   }
 
+  const fieldIcon = (key) => {
+    const k = key.toLowerCase();
+    if (k.includes('address') || k.includes('loc')) return 'fa-location-dot';
+    if (k.includes('phone') || k.includes('mobile')) return 'fa-phone';
+    if (k.includes('mail')) return 'fa-envelope';
+    if (k.includes('date') || k.includes('dob')) return 'fa-calendar-days';
+    if (k.includes('id') || k.includes('aadhaar') || k.includes('uid')) return 'fa-id-card';
+    return 'fa-database';
+  };
+
   data.data.forEach((rec, idx) => {
     const ac = AVATAR_COLORS[idx % AVATAR_COLORS.length];
     const card = document.createElement('div');
