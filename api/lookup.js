@@ -48,14 +48,9 @@ export default async function handler(req, res) {
       return res.status(429).json({ error: 'Rate limit exceeded', limitReached: true, limitMax: limitData.max });
     }
 
-    // 3. Construct the secure URL based on type
-    // Aadhaar uses ?id=, Mobile uses ?number=
-    let targetUrl;
-    if (type === 'aadhaar') {
-      targetUrl = `${baseUrl}?id=${encodeURIComponent(query)}`;
-    } else {
-      targetUrl = `${baseUrl}?number=${encodeURIComponent(query)}`;
-    }
+    // 3. Construct the secure URL
+    // The upstream API always expects ?number= regardless of the search type
+    const targetUrl = `${baseUrl}?number=${encodeURIComponent(query)}`;
 
     // 4. Fetch from the upstream worker
     const response = await fetch(targetUrl);

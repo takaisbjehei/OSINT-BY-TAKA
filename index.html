@@ -1859,13 +1859,19 @@ function renderResults(data) {
   const devBdg= document.getElementById('devBadge');
 
   grid.innerHTML = '';
-  badge.textContent = `${data.data.length} RECORD(S)`;
+  
+  let records = data.data || [];
+  if (activeMode === 'aadhaar') {
+    records = records.filter(r => r.id || r.uid || r.aadhaar);
+  }
+  
+  badge.textContent = `${records.length} RECORD(S)`;
 
   // Force developer brand to Takadori
   devBdg.textContent = `DEV: TAKADORI`;
   devBdg.style.display = 'block';
 
-  if (!data.data.length) {
+  if (!records.length) {
     grid.innerHTML = `<div class="empty-state">
       <i class="fa-regular fa-folder-open empty-icon"></i>
       <div class="empty-text">No records matched this query.</div>
@@ -1894,7 +1900,7 @@ function renderResults(data) {
       .replace(/'/g, "&#039;");
   };
 
-  data.data.forEach((rec, idx) => {
+  records.forEach((rec, idx) => {
     const ac = AVATAR_COLORS[idx % AVATAR_COLORS.length];
     const card = document.createElement('div');
     card.className = 'rec-card';
