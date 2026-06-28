@@ -1811,15 +1811,22 @@ hintChip.addEventListener('click', () => {
 
 document.getElementById('searchForm').addEventListener('submit', e => {
   e.preventDefault();
-  const raw = searchInput.value.trim();
-  const digits = raw.replace(/\D/g, '');
-
-  if (digits.length < 8 || digits.length > 15) {
-    toast('Invalid Format', 'Number must be between 8–15 digits.', 'error');
-    return;
-  }
+  const raw = searchInput.value.trim().toUpperCase();
   
-  doLookup(digits, activeMode);
+  if (activeMode === 'vehicle') {
+    if (raw.length < 4 || raw.length > 15) {
+      toast('Invalid Format', 'Registration must be between 4–15 characters.', 'error');
+      return;
+    }
+    doLookup(raw, activeMode);
+  } else {
+    const digits = raw.replace(/\D/g, '');
+    if (digits.length < 8 || digits.length > 15) {
+      toast('Invalid Format', 'Number must be between 8–15 digits.', 'error');
+      return;
+    }
+    doLookup(digits, activeMode);
+  }
 });
 
 // ─────────────────────────────────────────────
