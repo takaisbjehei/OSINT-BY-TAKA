@@ -1301,6 +1301,10 @@ footer{
           <i class="fa-solid fa-id-card"></i>
           <span>AADHAAR</span>
         </button>
+        <button type="button" class="mode-tab" data-mode="vehicle">
+          <i class="fa-solid fa-car"></i>
+          <span>VEHICLE INFO</span>
+        </button>
       </div>
 
       <!-- Search Form -->
@@ -1325,6 +1329,7 @@ footer{
         <div class="limit-badge" id="limitBadge" style="font-size:11px; font-weight:600; color:var(--c-text-muted); display:flex; gap:12px; align-items:center; background:var(--c-surface-1); padding:4px 12px; border-radius:4px; border:1px solid rgba(0,255,255,0.1);">
           <div><i class="fa-solid fa-phone" style="color:var(--c-cyan);"></i> MOB: <span id="limitMobile" style="color:var(--c-text);">0</span>/<span id="limitMobileMax">5</span></div>
           <div><i class="fa-solid fa-id-card" style="color:var(--c-purple);"></i> AAD: <span id="limitAadhaar" style="color:var(--c-text);">0</span>/<span id="limitAadhaarMax">5</span></div>
+          <div><i class="fa-solid fa-car" style="color:var(--c-orange);"></i> VEH: <span id="limitVehicle" style="color:var(--c-text);">0</span>/<span id="limitVehicleMax">5</span></div>
           <div style="margin-left:5px; border-left:1px solid rgba(255,255,255,0.1); padding-left:10px;"><i class="fa-solid fa-clock"></i> <span id="limitTimer">--:--:--</span></div>
         </div>
 
@@ -1425,6 +1430,7 @@ const CFG = {
   apiUrl: '/api/lookup?number=',
   testMobile: '1234567890',
   testAlt:    '1234567890',
+  testVehicle:'JH03AH8817',
   igUser:     'takadori12'
 };
 
@@ -1770,7 +1776,7 @@ const searchIcon  = document.getElementById('searchIcon');
 const hintChip    = document.getElementById('hintChip');
 const hintVal     = document.getElementById('hintVal');
 
-let currentLimits = { mobile: null, aadhaar: null };
+let currentLimits = { mobile: null, aadhaar: null, vehicle: null };
 
 document.querySelectorAll('.mode-tab').forEach(tab => {
   tab.addEventListener('click', () => {
@@ -1783,10 +1789,14 @@ document.querySelectorAll('.mode-tab').forEach(tab => {
       searchIcon.className = 'fa-solid fa-phone-flip input-icon-left';
       searchInput.placeholder = CFG.testMobile;
       hintVal.textContent = CFG.testMobile;
-    } else {
+    } else if (activeMode === 'aadhaar') {
       searchIcon.className = 'fa-solid fa-id-card input-icon-left';
       searchInput.placeholder = CFG.testAlt;
       hintVal.textContent = CFG.testAlt;
+    } else if (activeMode === 'vehicle') {
+      searchIcon.className = 'fa-solid fa-car input-icon-left';
+      searchInput.placeholder = CFG.testVehicle;
+      hintVal.textContent = CFG.testVehicle;
     }
     
     // Switch the timer to match the active tab's reset time
@@ -2064,6 +2074,7 @@ async function fetchCurrentUsage() {
       const json = await res.json();
       if (json.mobile) updateLimitUI('mobile', json.mobile.usage, json.mobile.max, json.mobile.reset_at);
       if (json.aadhaar) updateLimitUI('aadhaar', json.aadhaar.usage, json.aadhaar.max, json.aadhaar.reset_at);
+      if (json.vehicle) updateLimitUI('vehicle', json.vehicle.usage, json.vehicle.max, json.vehicle.reset_at);
       
       if (json.totalQueries !== undefined) {
         const queryEl = document.getElementById('queriesCounter');
@@ -2092,6 +2103,11 @@ function updateLimitUI(type, usage, max, resetAt) {
     const aEl = document.getElementById('limitAadhaar');
     const maxEl = document.getElementById('limitAadhaarMax');
     if(aEl) aEl.textContent = usage;
+    if(maxEl && max !== undefined) maxEl.textContent = max;
+  } else if (type === 'vehicle') {
+    const vEl = document.getElementById('limitVehicle');
+    const maxEl = document.getElementById('limitVehicleMax');
+    if(vEl) vEl.textContent = usage;
     if(maxEl && max !== undefined) maxEl.textContent = max;
   }
   

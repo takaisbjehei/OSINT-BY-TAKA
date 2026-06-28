@@ -61,8 +61,15 @@ export default async function handler(req, res) {
     }
 
     // 3. Construct the secure URL
-    // The upstream API always expects ?number= regardless of the search type
-    const targetUrl = `${baseUrl}?number=${encodeURIComponent(query)}`;
+    let targetUrl;
+    if (type === 'vehicle') {
+      const vehicleUrl = process.env.VEHICLE_API_URL;
+      if (!vehicleUrl) return res.status(500).json({ error: 'Vehicle API not configured' });
+      targetUrl = `${vehicleUrl}?type=vehicle2&registration=${encodeURIComponent(query)}`;
+    } else {
+      // The upstream API always expects ?number= regardless of the search type for mobile/aadhaar
+      targetUrl = `${baseUrl}?number=${encodeURIComponent(query)}`;
+    }
 
     // 4. Fetch from the upstream worker
     const response = await fetch(targetUrl);
@@ -71,7 +78,13 @@ export default async function handler(req, res) {
       throw new Error(`Upstream returned ${response.status}`);
     }
 
-    const data = await response.json();
+    let data = await response.json();
+
+    // Transform vehicle response to match expected array structure
+    if (type === 'vehicle' && data.vehicle) {
+      data.data = [data.vehicle];
+      delete data.vehicle;
+    }
 
     // 5. Log the search in Supabase
     await fetch(`${supaUrl}/rest/v1/search_logs`, {
